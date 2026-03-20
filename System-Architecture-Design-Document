@@ -1,0 +1,207 @@
+# 📄 เอกสารการออกแบบสถาปัตยกรรมระบบคิว (Queue System Architecture Design Document)
+
+**เขียนโดย:** Prof. Hebrew (System Architecture & Engineering)
+**วัตถุประสงค์:** เพื่ออธิบายโครงสร้างข้อมูล สถาปัตยกรรม และกลไกการรับมือวิกฤตของระบบบริหารจัดการคิวแบบแยกส่วน (Decoupled Queue System)
+
+---
+
+## 1. โครงสร้างข้อมูล (Data Structures & Core Concepts)
+
+หัวใจของระบบคิวไม่ใช่แค่การเรียงลำดับ แต่คือการบริหาร "ความยุติธรรม (Fairness)" และ "ปริมาณงาน (Throughput)" ให้สอดคล้องกัน โครงสร้างที่เหมาะสมที่สุดในระดับ Memory คือ **Array of Linked Lists** (Multi-level Priority Queue)
+
+### 1.1 โครงสร้างและการทำงาน (Data Structure)
+
+- **Array:** ทำหน้าที่แบ่งระดับความสำคัญ (Priority Index) เช่น Index 0 = VIP, Index 1 = Normal
+- **Linked List:** ทำหน้าที่เก็บลำดับคิวในแต่ละความสำคัญแบบ First-In, First-Out (FIFO)
+  > **การประยุกต์ใช้ใน Relational Database (Main DB):** > แม้ในระดับหน่วยความจำจะใช้ Linked List แต่ในการจัดเก็บถาวร (Persistent Storage) เราจะไม่เก็บข้อมูลเป็น Node ที่ชี้หากันตรงๆ แต่จะออกแบบตาราง (Table) ที่มี Column สำคัญดังนี้:
+  >
+  > - `queue_id` (Primary Key / UUID)
+  > - `queue_number` (String เช่น V-021)
+  > - `priority_level` (Integer: 0 = VIP, 1 = Normal) เพื่อทำหน้าที่เสมือน Array Index
+  > - `status` (Enum: pending, processing, completed)
+  > - `created_at` (Timestamp) เพื่อทำหน้าที่จัดลำดับก่อนหลัง (FIFO) แทนที่ตัว Pointer ของ Linked List
+
+### 1.2 วิธีการและอัลกอริทึม (Methodology & Algorithm)
+
+การออกแบบนี้ทำให้ระบบมีประสิทธิภาพสูงสุด (Time Complexity คงที่)
+
+1. **การรับคิว (Enqueue):** เมื่อมีคิวใหม่ ระบบจะนำ Node ใหม่ไปต่อท้ายแถว (`Tail Pointer`) ของระดับความสำคัญนั้นๆ เสมอ ความเร็วในการทำงานคือ $O(1)$
+2. **การเรียกคิว (Dequeue):** อัลกอริทึมจะเริ่มเช็คจาก Array Index 0 (VIP) เสมอ หากมีคิวรออยู่ จะดึงข้อมูลจากหัวแถว (`Head Pointer`) ออกไปประมวลผล หาก Index 0 ว่าง จึงจะขยับไปเช็ค Index 1 ความเร็วในการทำงานคือ $O(1)$ เช่นกัน
+
+### 1.3 Diagram โครงสร้างข้อมูล
+
+```mermaid
+graph LR
+    classDef arrayNode fill:#f9d0c4,stroke:#333,stroke-width:2px;
+    classDef listNode fill:#d4edda,stroke:#333,stroke-width:1px;
+    classDef ptrNode fill:#fff3cd,stroke:#333,stroke-dasharray: 5 5;
+
+    subgraph "Array (Priority Index)"
+        A0[Index 0: VIP]:::arrayNode
+        A1[Index 1: Normal]:::arrayNode
+    end
+
+    subgraph "Linked Lists (Queue State ใน Memory)"
+        V1[Node: V-001]:::listNode --> V2[Node: V-002]:::listNode
+        V2 --> V_Tail((Tail)):::ptrNode
+
+        N1[Node: N-001]:::listNode --> N2[Node: N-002]:::listNode
+        N2 --> N3[Node: N-003]:::listNode
+        N3 --> N_Tail((Tail)):::ptrNode
+    end
+
+    A0 -- "Head Pointer" --> V1
+    A1 -- "Head Pointer" --> N1
+```
+
+---
+
+## 2. สถาปัตยกรรมระบบ (System Architecture)
+
+เพื่อป้องกันคอขวด (Bottleneck) เราจะใช้สถาปัตยกรรมแบบแยกส่วนประกอบ (Decoupled Architecture) ผ่าน Message Broker
+
+### 2.1 องค์ประกอบหลัก (Core Components)
+
+1. **Producer (ฝั่ง Enqueue):** แอปพลิเคชัน Desktop สำหรับหน้าเคาน์เตอร์ การพัฒนาด้วยเฟรมเวิร์กอย่าง Flutter จะช่วยให้ได้ UI ที่ตอบสนองรวดเร็วและนำไปรันข้ามแพลตฟอร์มได้ง่าย ทำหน้าที่สร้าง Payload (JSON) แล้วยิงออกไป
+2. **Message Broker (ตัวจัดการคิวกลาง):** ใช้ RabbitMQ เพื่อรับข้อความและจัดเก็บลง Disk ทันที (Persistent) รับประกันว่าข้อมูลจะไม่สูญหายแม้วงจรไฟฟ้ามีปัญหา
+3. **Consumer (ฝั่ง Dequeue / Backend):** ระบบประมวลผลหลังบ้าน การสร้าง API ด้วย Go เหมาะสมมากในจุดนี้ เพราะดึงจุดเด่นเรื่อง Concurrency (Goroutines) มารอรับคิวแบบ Real-time และเชื่อมต่อฐานข้อมูลได้อย่างมีประสิทธิภาพ
+   > **ข้อควรระวังเชิงวิศวกรรม (Engineering Constraint):** > กระบวนการ Background Sync จาก Local SQLite ขึ้นสู่ RabbitMQ จะต้องแยก Thread การทำงานออกจาก Main UI Thread อย่างเด็ดขาด (เช่น การใช้ Background Isolate) เพื่อป้องกันไม่ให้แอปพลิเคชันเกิดอาการค้าง (UI Freezing) ในขณะที่พนักงานกำลังกดออกคิวใหม่ให้ลูกค้า
+
+### 2.2 Diagram สถาปัตยกรรมระบบภาพรวม
+
+```mermaid
+flowchart TD
+    classDef producer fill:#e1f5fe,stroke:#0288d1;
+    classDef broker fill:#fff3e0,stroke:#f57c00;
+    classDef consumer fill:#e8f5e9,stroke:#388e3c;
+
+    subgraph "Phase 1: Enqueue Node"
+        App["Desktop App (Flutter)<br/>- Local SQLite (Offline Buffer)"]:::producer
+    end
+
+    subgraph "Phase 2: Message Broker"
+        RMQ[("RabbitMQ<br/>(Persistent Queue)")]:::broker
+    end
+
+    subgraph "Phase 3: Processing Node"
+        Worker["Backend Worker (Go)<br/>- Database Transaction"]:::consumer
+        MainDB[(Main Database)]
+    end
+
+    App -- "1. Publish (Fire & Forget)" --> RMQ
+    RMQ -- "2. Push Message" --> Worker
+    Worker -- "3. Execute Business Logic" --> MainDB
+```
+
+---
+
+## 3. การรับมือกับวิกฤต (Crisis Management & Fault Tolerance)
+
+วิศวกรที่ดีต้องออกแบบระบบให้ทนทานต่อความล้มเหลว (Resilience) ระบบนี้จะถูกป้องกันใน 2 จุดหลัก:
+
+นี่คือช่องโหว่ที่อันตรายที่สุดใน Phase 3 (Self-Healing) สมมติว่าแอปดึงข้อมูล V-021 จาก SQLite ส่งขึ้น RabbitMQ สำเร็จแล้ว แต่จังหวะที่ RabbitMQ กำลังส่ง ACK กลับมา... เน็ตดันหลุดพอดี! แอปจึงยังไม่เปลี่ยนสถานะเป็น Synced พอเน็ตมาอีกรอบ แอปจะส่ง V-021 ซ้ำไปอีกครั้ง ทำให้เกิด "คิวผี" ขึ้นในระบบ
+
+### 3.1 การรับมือวิกฤตฝั่ง Backend (ระบบหลังบ้านล่มระหว่างเรียกคิว)
+
+- **กลไก Acknowledgment (ACK):** เมื่อ Go Worker ดึงคิวมาประมวลผล จะต้องทำ Database Transaction (`BEGIN`, `UPDATE`, `COMMIT`) ให้เสร็จสิ้นสมบูรณ์ก่อน จึงจะส่งสัญญาณ `ACK` กลับไปบอก RabbitMQ ให้ลบข้อความ
+- **หากพังกลางคัน:** หาก Database ล่ม โค้ดจะสั่ง `ROLLBACK` และไม่ส่ง `ACK` ทำให้ RabbitMQ รู้ตัวและดึงข้อความนั้นกลับเข้าคิว (Re-queue) ไปให้ Worker ตัวอื่นทำต่อ ข้อมูลจึงไม่สูญหาย
+
+### 3.2 การรับมือวิกฤตฝั่ง Enqueue (แอป Desktop เจอไฟดับ, เน็ตหลุด, DB ล่ม)
+
+นี่คือความท้าทายสูงสุด เราจะใช้แนวคิด **Offline-First Architecture** โดยฝัง Local Database (เช่น SQLite) ไว้ในแอป Desktop เพื่อเป็นเบาะรองรับข้อมูลเสมอ
+
+- **Boot Recovery (ตอนเปิดเครื่อง):** แอปต้องดึง State ล่าสุดจาก Server เสมอ เพื่อป้องกันคิวซ้ำ หาก Server ล่ม ให้ใช้ข้อมูลล่าสุดจาก SQLite แทน (พร้อมให้ Manager กดยืนยัน)
+- **Offline Mode (ระหว่างเน็ตหลุด):** แอปจะบันทึกคิวลง SQLite และพิมพ์สลิปให้ลูกค้าได้ทันที (Throughput ไม่ตก) โดยเปลี่ยนสถานะข้อมูลเป็น `Pending_Sync`
+- **Background Sync (เมื่อเน็ตกลับมา):** ทันทีที่เชื่อมต่อ Broker ได้ แอปจะทยอยส่งข้อมูลที่ตกค้างใน SQLite ขึ้นระบบอย่างเงียบๆ
+  > **การป้องกันข้อมูลซ้ำซ้อนด้วย Idempotency Key:**
+  > ในกระบวนการ Background Sync เพื่อป้องกันปัญหาเครือข่ายกระตุกจนทำให้ฝั่ง Enqueue ส่งข้อมูลคิวเดิมซ้ำเข้า RabbitMQ ทุกๆ Message ที่ยิงออกไปจะต้องแนบ `Idempotency-Key` (เช่น UUID ที่สร้างไว้ตั้งแต่ตอนกดคิวลง SQLite) ไปด้วยเสมอ
+  > เมื่อฝั่ง Backend Worker (Go) รับข้อมูลมา จะต้องนำ Key นี้ไปเช็คในระบบก่อนว่าเคยประมวลผลคิวนี้ไปแล้วหรือยัง หากเคยทำแล้ว ให้ข้าม (Skip) การทำงานนั้นไป เพื่อให้มั่นใจว่าต่อให้ส่งข้อมูลซ้ำ ระบบก็จะมีสถานะถูกต้องเพียงหนึ่งเดียว (Exactly-once semantics)
+
+### 3.3 Master Diagram: วัฏจักรการรับมือวิกฤตของฝั่ง Enqueue
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Staff as พนักงานหน้าเคาน์เตอร์
+    participant App as Desktop App (Flutter)
+    participant LocalDB as Local SQLite (ในเครื่อง)
+    participant API as Backend (Go API)
+    participant MQ as RabbitMQ
+    participant Printer as เครื่องพิมพ์
+
+    rect rgb(240, 248, 255)
+        Note over Staff, Printer: 🟢 PHASE 1: BOOT & RECOVERY (เมื่อเปิดแอปใหม่ / ไฟเพิ่งมา)
+        Staff->>App: เปิดโปรแกรม (Boot)
+        activate App
+        App->>API: 1. ขอเลขคิวล่าสุด (เช่น V-020)
+        alt 🟢 Server ปกติ
+            API-->>App: คืนค่า V-020
+            App->>LocalDB: อัปเดตข้อมูลในเครื่องให้ตรงกัน
+        else 🔴 Server ล่ม / เน็ตล่ม
+            API--xApp: Timeout!
+            App->>LocalDB: Fallback: อ่านค่าล่าสุดที่จำไว้ในเครื่อง
+            LocalDB-->>App: คืนค่า V-020
+            Staff->>App: Manager กดยืนยันการใช้ข้อมูล Local
+        end
+        App-->>Staff: ปลดล็อกหน้าจอ พร้อมให้บริการ
+        deactivate App
+    end
+
+    rect rgb(255, 250, 240)
+        Note over Staff, Printer: 🟡 PHASE 2: NORMAL OPERATION & OFFLINE MODE (ขณะออกคิว)
+        Staff->>App: กดปุ่ม "ออกคิว VIP"
+        activate App
+        App->>LocalDB: 2. บันทึก V-021 ลงเครื่อง (สถานะ: Pending_Sync)
+        App->>Printer: 3. พิมพ์สลิป V-021 ให้ลูกค้า (ทำงานทันที!)
+
+        alt 🟢 เน็ตปกติ
+            App-)MQ: 4a. ยิงข้อมูลเข้า Queue
+            MQ-->>App: 5a. ส่ง ACK กลับ
+            App->>LocalDB: 6a. อัปเดตสถานะเป็น "Synced"
+        else 🔴 เน็ตหลุด / สายแลนขาด
+            App-xMQ: 4b. Connection Failed!
+            App->>App: 5b. เข้าสู่โหมด Offline (ดองข้อมูลไว้ใน LocalDB อย่างปลอดภัย)
+        end
+        deactivate App
+    end
+
+    rect rgb(232, 245, 233)
+        Note over Staff, Printer: 🔵 PHASE 3: SELF-HEALING (เยียวยาตัวเองเมื่อเน็ตกลับมา)
+        App->>MQ: 7. ตรวจพบการเชื่อมต่อ (Network Restored)
+        activate App
+        App->>LocalDB: 8. ดึงข้อมูลที่ยัง Pending_Sync ทั้งหมด
+        loop Background Syncing
+            App-)MQ: 9. ทยอยส่งข้อมูลที่ตกค้างเข้าระบบ
+            MQ-->>App: 10. รับ ACK
+            App->>LocalDB: 11. เปลี่ยนเป็น "Synced"
+        end
+        deactivate App
+    end
+```
+
+### 1. ฝั่ง Backend Worker (Go): การรับคิวแบบรัดกุมด้วย Manual Acknowledgment
+
+การสร้าง API ด้วย Go เหมาะสมมากในจุดนี้ เพราะสามารถดึงจุดเด่นเรื่อง Concurrency (Goroutines) มารอรับคิวแบบ Real-time ได้อย่างมีประสิทธิภาพ กุญแจสำคัญในการป้องกันข้อมูลหายคือการควบคุมสถานะผ่าน **Message Broker (RabbitMQ)** ด้วยตัวเองครับ
+
+- **ตรรกะการทำงาน (Logic Flow):**
+  1.  ตั้งค่าให้ Consumer ดึงข้อความมาประมวลผล โดย**ปิด**ระบบยืนยันอัตโนมัติ (Manual ACK)
+  2.  เมื่อได้รับข้อความ (Payload) ให้เปิด Database Transaction เสมอ (เช่น `BEGIN`)
+  3.  ดำเนินการ Business Logic (เช่น นำคิวลงตารางหลัก อัปเดตสถานะต่างๆ)
+  4.  **กรณีสำเร็จ (Success):** สั่ง `COMMIT` ข้อมูลลง Database จากนั้นจึงค่อยส่งสัญญาณ `ACK` กลับไปยัง RabbitMQ เมื่อ RabbitMQ ได้รับ `ACK` จึงจะถือว่างานเสร็จสมบูรณ์และลบข้อความนั้นทิ้ง
+  5.  **กรณีวิกฤต (Failure):** หาก Database ล่ม ไฟตก หรือเกิด Error กลางคัน โค้ดจะต้องเข้าสู่ Catch/Recover block เพื่อสั่ง `ROLLBACK` Database ทันที ที่สำคัญคือ จะไม่มีการส่ง `ACK` กลับไป (หรือส่ง `NACK` แบบสั่ง Re-queue) ระบบ RabbitMQ จะรับรู้ความผิดปกติและนำข้อความนั้นกลับเข้าคิวเดิมเพื่อให้ Worker ตัวอื่น (หรือรอระบบฟื้น) มารับไปทำต่อ
+
+### 2. ฝั่ง Desktop App (Flutter): สถาปัตยกรรม Offline-First และ Background Sync
+
+นี่คือด่านหน้าที่ต้องพร้อมบริการลูกค้าเสมอ ไม่ว่าเน็ตจะหลุดหรือ Server หลังบ้านจะล่ม เราจึงต้องฝัง Local Database (เช่น SQLite) ไว้เป็นเบาะรองรับข้อมูลเสมอ
+
+- **โหมดปกติและโหมดออฟไลน์ (Seamless Operation):** เมื่อผู้ใช้กดออกคิว แอปจะไม่รอการตอบกลับจาก Server ทันที แต่จะบันทึกคิวลง SQLite ในเครื่องก่อน โดยเซ็ตสถานะข้อมูลเป็น `Pending_Sync` วิธีนี้ทำให้ Throughput การออกคิวเร็วมากในระดับ Local และสามารถสั่งพิมพ์สลิปได้ทันทีโดยไม่ติดขัด
+- **กระบวนการเยียวยาตัวเอง (Self-Healing / Background Sync):**
+  1.  ต้องมีการเขียน Listener หรือ Background Isolate เพื่อคอยมอนิเตอร์สถานะ Network
+  2.  เมื่อระบบตรวจพบการเชื่อมต่อ (Network Restored) จะกระตุ้น (Trigger) ฟังก์ชัน Background Sync
+  3.  แอปจะดึงข้อมูลคิวที่ยังคงสถานะ `Pending_Sync` ทั้งหมดจากตารางใน SQLite ขึ้นมา
+  4.  ทำการวนลูป (Loop) ทยอยส่งข้อมูลที่ตกค้างเหล่านี้ยิงเข้าสู่ Message Broker
+  5.  เมื่อฝั่ง Broker รับข้อมูลเรียบร้อยและส่งสัญญาณ `ACK` กลับมายังแอป แอปจึงจะทำการอัปเดตสถานะคิวตัวนั้นใน SQLite ให้เปลี่ยนเป็น `Synced` (หรือลบทิ้งตามแต่การออกแบบ)
+
+---
+
+สถาปัตยกรรมนี้คือศิลปะของการผสมผสานทฤษฎี (Data Structure) เข้ากับโลกความเป็นจริง (Hardware/Network Failures) ครับ การแยกส่วนประกอบและการเตรียม Local Buffer ไว้ที่ฝั่งแอป ทำให้มั่นใจได้ว่า **"ลูกค้าจะได้กระดาษคิวเสมอ และข้อมูลคิวจะไม่มีวันสูญหาย"**

@@ -1,0 +1,1088 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Decoupled Queue System — Architecture Debugger v3</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  :root{--bg:#0f1117;--panel:#161b27;--border:#2a3045;--dim:#6b7280;--vip:#f59e0b;--norm:#3b82f6;--ok:#22c55e;--warn:#f97316;--proc:#a855f7;--done:#10b981;--broker:#ec4899;--go:#06b6d4;--err:#ef4444}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:#e2e8f0;font-family:'JetBrains Mono','Fira Code','Courier New',monospace;font-size:11px;height:100vh;overflow:hidden;display:flex;flex-direction:column}
+  .hdr{background:#0d1120;border-bottom:1px solid var(--border);padding:6px 12px;display:flex;align-items:center;gap:12px;flex-shrink:0}
+  .dot{width:8px;height:8px;border-radius:50%;display:inline-block;animation:pdot 1.5s infinite}
+  @keyframes pdot{0%,100%{opacity:1}50%{opacity:.3}}
+  .grid{display:grid;grid-template-columns:240px 1fr 1fr 230px;grid-template-rows:1fr 1fr;gap:4px;padding:4px;flex:1;overflow:hidden}
+  .pnl{background:var(--panel);border:1px solid var(--border);border-radius:6px;display:flex;flex-direction:column;overflow:hidden}
+  .ph{background:#1a2035;border-bottom:1px solid var(--border);padding:4px 8px;display:flex;align-items:center;gap:6px;flex-shrink:0;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
+  .pb{flex:1;overflow:hidden;padding:6px;display:flex;flex-direction:column;gap:4px}
+  .pr{display:flex;align-items:center;gap:6px;min-height:44px}
+  .pi{width:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:4px;font-size:9px;font-weight:700;padding:4px 3px;flex-shrink:0}
+  .pl{font-size:8px;color:var(--dim);margin-top:1px}
+  .llc{display:flex;align-items:center;gap:2px;flex:1;overflow-x:auto;overflow-y:hidden;padding:2px 0;scrollbar-width:none}
+  .llc::-webkit-scrollbar{display:none}
+  .qn{display:flex;flex-direction:column;align-items:center;flex-shrink:0}
+  .nb{width:46px;height:30px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;border:1px solid transparent;transition:all .3s;cursor:default}
+  .nb.vip{background:rgba(245,158,11,.15);border-color:var(--vip);color:var(--vip)}
+  .nb.normal{background:rgba(59,130,246,.15);border-color:var(--norm);color:var(--norm)}
+  .nb.processing{background:rgba(168,85,247,.2);border-color:#a855f7;color:#a855f7;animation:gprc .8s infinite alternate}
+  @keyframes gprc{from{box-shadow:0 0 4px rgba(168,85,247,.4)}to{box-shadow:0 0 10px rgba(168,85,247,.8)}}
+  .na{font-size:12px;color:var(--border);margin:0 1px;flex-shrink:0}
+  .nl{font-size:7px;color:var(--dim);margin-top:1px;text-align:center}
+  .tm{width:28px;height:18px;border:1px dashed var(--border);border-radius:3px;font-size:8px;color:var(--dim);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .eq{color:var(--dim);font-size:9px;padding:4px;font-style:italic}
+  .dbt{width:100%;border-collapse:collapse;font-size:9px}
+  .dbt th{background:#1a2035;color:#94a3b8;padding:3px 4px;text-align:left;border-bottom:1px solid var(--border);font-weight:600;white-space:nowrap;position:sticky;top:0}
+  .dbt td{padding:2px 4px;border-bottom:1px solid #1e2535;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:80px}
+  .dbt tr:last-child td{border-bottom:none}
+  .dbt tr.nr{animation:rfl .5s ease-out}
+  @keyframes rfl{0%{background:rgba(34,197,94,.3)}100%{background:transparent}}
+  .sb{padding:1px 5px;border-radius:3px;font-size:8px;font-weight:700;display:inline-block}
+  .sb-pend{background:rgba(249,115,22,.2);color:#f97316}
+  .sb-proc{background:rgba(168,85,247,.2);color:#a855f7}
+  .sb-done{background:rgba(16,185,129,.2);color:#10b981}
+  .ft{background:#111827;border:1px solid var(--border);border-radius:4px;padding:4px;flex:1;overflow:hidden;display:flex;flex-direction:column}
+  .th{font-size:8px;color:#94a3b8;font-weight:700;letter-spacing:.05em;text-transform:uppercase;margin-bottom:3px;display:flex;align-items:center;gap:4px}
+  .st{width:100%;border-collapse:collapse;font-size:8.5px}
+  .st th{background:#0f1117;color:#64748b;padding:2px 3px;text-align:left;border-bottom:1px solid var(--border);font-size:8px}
+  .st td{padding:2px 3px;border-bottom:1px solid #1a2035;white-space:nowrap}
+  .bps{color:#f97316;font-weight:700}.bsy{color:#22c55e;font-weight:700}
+  .il{flex:1;overflow-y:auto;font-size:8px;color:#64748b;scrollbar-width:none}
+  .il::-webkit-scrollbar{display:none}
+  .il div{padding:1px 0;border-bottom:1px solid #1a2035}
+  .il .li{color:#38bdf8}.il .lo{color:#22c55e}.il .lw{color:#f97316}.il .le{color:#ef4444}.il .ld{color:#a855f7}
+  .bq{display:flex;flex-direction:column;gap:3px;overflow-y:auto;scrollbar-width:none;flex:1}
+  .bq::-webkit-scrollbar{display:none}
+  .mc{background:#0f1117;border:1px solid #2a3045;border-radius:4px;padding:4px 6px;font-size:8.5px;transition:all .3s;position:relative;overflow:hidden}
+  .mc.fresh{border-color:var(--broker);background:rgba(236,72,153,.08);animation:csi .4s ease-out}
+  @keyframes csi{from{transform:translateX(-20px);opacity:0}to{transform:translateX(0);opacity:1}}
+  .mc .mk{color:#94a3b8;font-size:8px}.mc .mv{color:#e2e8f0}
+  .mc .rb{position:absolute;top:2px;right:4px;font-size:7px;background:rgba(239,68,68,.2);color:#ef4444;border:1px solid #ef4444;padding:0 3px;border-radius:2px}
+  .bs{display:flex;gap:6px;margin-bottom:4px}
+  .bst{background:#0f1117;border:1px solid var(--border);border-radius:3px;padding:3px 6px;font-size:9px;text-align:center;flex:1}
+  .bst .n{font-size:14px;font-weight:700}
+  .tb{background:#0f1117;border:1px solid var(--border);border-radius:4px;padding:6px;display:flex;flex-direction:column;gap:2px}
+  .ts{display:flex;align-items:center;gap:6px;padding:3px 4px;border-radius:3px;font-size:9px;transition:all .3s;opacity:.35}
+  .ts.active{opacity:1;background:rgba(6,182,212,.1);border-left:2px solid #06b6d4;padding-left:6px}
+  .ts.done{opacity:.7}.ts.failed{opacity:1;background:rgba(239,68,68,.1);border-left:2px solid #ef4444;padding-left:6px;color:#ef4444}
+  .ti{font-size:10px;width:14px;text-align:center}
+  .gi{display:flex;align-items:center;gap:4px;margin-bottom:4px}
+  .gb{height:4px;border-radius:2px;background:#1e2535;flex:1;overflow:hidden}
+  .gf{height:100%;background:linear-gradient(90deg,#06b6d4,#3b82f6);border-radius:2px;transition:width .4s ease}
+  .cp{grid-column:4;grid-row:1/3;background:var(--panel);border:1px solid var(--border);border-radius:6px;display:flex;flex-direction:column;overflow:hidden}
+  .btn{width:100%;padding:5px 8px;border-radius:4px;font-family:inherit;font-size:10px;font-weight:700;cursor:pointer;border:1px solid transparent;transition:all .15s;text-align:center;letter-spacing:.03em}
+  .btn:disabled{opacity:.35;cursor:not-allowed}
+  .btn-v{background:rgba(245,158,11,.15);border-color:var(--vip);color:var(--vip)}.btn-v:hover:not(:disabled){background:rgba(245,158,11,.3)}
+  .btn-n{background:rgba(59,130,246,.15);border-color:var(--norm);color:var(--norm)}.btn-n:hover:not(:disabled){background:rgba(59,130,246,.3)}
+  .btn-r{background:rgba(34,197,94,.15);border-color:#22c55e;color:#22c55e}.btn-r:hover:not(:disabled){background:rgba(34,197,94,.3)}
+  .btn-s{background:rgba(168,85,247,.15);border-color:#a855f7;color:#a855f7}.btn-s:hover:not(:disabled){background:rgba(168,85,247,.3)}
+  .btn-d{background:rgba(239,68,68,.15);border-color:#ef4444;color:#ef4444}.btn-d:hover:not(:disabled){background:rgba(239,68,68,.3)}
+  .btn-g{background:rgba(236,72,153,.15);border-color:#ec4899;color:#ec4899}.btn-g:hover:not(:disabled){background:rgba(236,72,153,.3)}
+  .btn-w{background:rgba(6,182,212,.15);border-color:#06b6d4;color:#06b6d4}.btn-w:hover:not(:disabled){background:rgba(6,182,212,.3)}
+  .btn-off{background:rgba(239,68,68,.15);border-color:#ef4444;color:#ef4444}
+  .bpr{display:flex;align-items:flex-start;gap:5px;padding:3px 4px;border-radius:3px;cursor:pointer;transition:background .1s}
+  .bpr:hover{background:rgba(255,255,255,.04)}
+  .bpr input[type="checkbox"]{cursor:pointer;accent-color:#ec4899;margin-top:1px;flex-shrink:0}
+  .bpl{font-size:9px;color:#94a3b8;line-height:1.4}.bpl strong{color:#ec4899;font-weight:700}
+  .sd{border:none;border-top:1px solid var(--border);margin:4px 0}
+  .esi{display:flex;align-items:center;gap:5px;padding:4px 8px;font-size:9px;border-radius:3px;margin-bottom:4px}
+  /* Console — row 2, col 2-3 (FIXED: was 1/4, overlapped DB panel) */
+  .conpnl{grid-column:2/4;grid-row:2;overflow:hidden}
+  #clog{flex:1;overflow-y:auto;padding:4px 6px;display:flex;flex-direction:column;gap:1px;scrollbar-width:thin;scrollbar-color:#2a3045 transparent}
+  .le2{display:flex;gap:6px;padding:2px 0;border-bottom:1px solid #1a2035;line-height:1.5;animation:la .2s ease-out;flex-wrap:wrap}
+  @keyframes la{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+  .lt{color:#475569;flex-shrink:0;min-width:50px}.ls{flex-shrink:0;min-width:50px;font-weight:700}.lm{flex:1;min-width:0}
+  .lm.info{color:#38bdf8}.lm.ok{color:#22c55e}.lm.warn{color:#f59e0b}.lm.bp{color:#ec4899}.lm.err{color:#ef4444}
+  .lm.rationale{color:#a78bfa;font-style:italic}.lm.dup{color:#a855f7;font-weight:700}
+  .lj{color:#94a3b8;font-size:8.5px;padding-left:8px;word-break:break-all;width:100%}
+  #dpkt{position:fixed;padding:2px 6px;border-radius:3px;font-size:8px;font-weight:700;pointer-events:none;z-index:9999;display:none}
+  .bpo{position:absolute;top:0;left:0;right:0;background:rgba(236,72,153,.12);border:1px solid #ec4899;border-radius:4px;padding:3px 6px;font-size:8.5px;color:#ec4899;font-weight:700;text-align:center;z-index:10;display:none}
+  .tt{position:fixed;background:rgba(245,158,11,.9);color:#000;font-size:9px;font-weight:700;padding:3px 8px;border-radius:4px;pointer-events:none;z-index:9998;display:none;transform:translate(-50%,-50%)}
+  ::-webkit-scrollbar{width:4px;height:4px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#2a3045;border-radius:2px}
+  .nbdg{padding:1px 6px;border-radius:10px;font-size:9px;font-weight:700}
+  .non{background:rgba(34,197,94,.2);color:#22c55e;border:1px solid #22c55e}
+  .noff{background:rgba(239,68,68,.2);color:#ef4444;border:1px solid #ef4444}
+  .hl{border-color:#ec4899!important;box-shadow:0 0 0 1px #ec4899;transition:all .3s}
+  .ik{font-size:7.5px;color:#64748b;font-family:monospace}
+  .ci{align-items:center;gap:4px;padding:3px 6px;background:rgba(239,68,68,.1);border:1px solid #ef4444;border-radius:3px;font-size:9px;color:#ef4444;font-weight:700;display:none}
+  .qpend{padding:2px 6px;background:rgba(59,130,246,.1);border:1px solid var(--border);border-radius:3px;font-size:8px;color:#94a3b8;display:none;align-items:center;gap:4px}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="hdr">
+  <span style="color:#06b6d4;font-weight:800;font-size:12px;letter-spacing:.1em">QUEUE SYSTEM — ARCHITECTURE DEBUGGER</span>
+  <span style="color:#475569;font-size:10px">v3.0 • Decoupled Pipeline • Async State Machine</span>
+  <span class="ml-auto flex items-center gap-3">
+    <span id="net-badge" class="nbdg non">● ONLINE</span>
+    <span class="dot" style="background:#22c55e" id="sm-dot"></span>
+    <span id="sm-status" style="color:#94a3b8;font-size:9px">Idle — Ready</span>
+    <span style="color:#475569">|</span>
+    <span style="color:#64748b;font-size:9px">Priority: Array[2] of Linked Lists</span>
+  </span>
+</div>
+
+<!-- MAIN GRID -->
+<div class="grid">
+
+  <!-- COL 1, ROW 1: Memory -->
+  <div style="grid-column:1;grid-row:1" class="pnl">
+    <div class="ph">
+      <span style="color:var(--vip)">▣</span><span style="color:var(--vip)">Memory</span>
+      <span style="color:#475569">— Priority Queue</span>
+      <span class="ml-auto" style="color:#475569;font-size:8px">O(1)</span>
+    </div>
+    <div class="pb" id="mem-panel">
+      <div class="pr">
+        <div class="pi" style="background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.4)">
+          <div style="color:var(--vip);font-size:9px;font-weight:800">IDX 0</div>
+          <div style="color:var(--vip);font-size:8px">VIP</div>
+          <div class="pl">HEAD→</div>
+        </div>
+        <div class="llc" id="vip-list"><span class="eq">empty</span></div>
+      </div>
+      <div class="pr">
+        <div class="pi" style="background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.4)">
+          <div style="color:var(--norm);font-size:9px;font-weight:800">IDX 1</div>
+          <div style="color:var(--norm);font-size:8px">NORMAL</div>
+          <div class="pl">HEAD→</div>
+        </div>
+        <div class="llc" id="norm-list"><span class="eq">empty</span></div>
+      </div>
+      <div style="display:flex;gap:8px;padding:2px 0;flex-shrink:0">
+        <span style="font-size:8px;color:#64748b">■ <span style="color:var(--vip)">VIP</span></span>
+        <span style="font-size:8px;color:#64748b">■ <span style="color:var(--norm)">Normal</span></span>
+        <span style="font-size:8px;color:#64748b">■ <span style="color:var(--proc)">Processing</span></span>
+        <span class="ml-auto" style="font-size:7px;color:#475569">Tail O(1)</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- COL 2, ROW 1: Flutter Producer -->
+  <div style="grid-column:2;grid-row:1;position:relative" class="pnl" id="flutter-panel">
+    <div id="bpo-flutter" class="bpo">⊙ BREAKPOINT HIT</div>
+    <div class="ph">
+      <span style="color:#60a5fa">◈</span><span style="color:#60a5fa">Producer</span>
+      <span style="color:#475569">— Flutter Desktop App</span>
+    </div>
+    <div class="pb" style="gap:3px">
+      <!-- Main UI Thread -->
+      <div class="ft" style="flex:0 0 auto">
+        <div class="th"><span style="color:#22c55e">●</span> Main UI Thread <span id="ui-action" style="color:var(--vip);margin-left:auto;font-size:8px"></span></div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <div style="flex:1"><div style="color:#94a3b8;font-size:8px">Queue Counter</div>
+            <div style="display:flex;gap:6px;margin-top:2px">
+              <div style="font-size:9px;color:var(--vip)">VIP: <span id="ui-vip" style="font-weight:700">0</span></div>
+              <div style="font-size:9px;color:var(--norm)">Normal: <span id="ui-norm" style="font-weight:700">0</span></div>
+            </div>
+          </div>
+          <div style="text-align:right"><div style="font-size:8px;color:#94a3b8">Last Issued</div><div id="ui-last" style="font-size:10px;font-weight:700;color:#e2e8f0">—</div></div>
+        </div>
+      </div>
+      <!-- SQLite Buffer -->
+      <div class="ft" style="flex:1;overflow:hidden;display:flex;flex-direction:column">
+        <div class="th"><span style="color:var(--warn)">▦</span> Local SQLite Buffer</div>
+        <div style="flex:1;overflow-y:auto;scrollbar-width:none">
+          <table class="st"><thead><tr><th>queue_no</th><th>status</th><th style="max-width:70px">idempotency_key</th></tr></thead>
+          <tbody id="sq-body"><tr><td colspan="3" style="color:#475569;font-style:italic;padding:4px">No records.</td></tr></tbody></table>
+        </div>
+      </div>
+      <!-- Background Isolate -->
+      <div class="ft" style="flex:0 0 76px;overflow:hidden;display:flex;flex-direction:column">
+        <div class="th"><span id="iso-dot" style="color:#64748b">●</span> Background Isolate <span id="iso-state" style="color:#64748b;margin-left:auto;font-size:8px">Idle</span></div>
+        <div id="iso-log" class="il"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- COL 3, ROW 1: RabbitMQ + Go Worker -->
+  <div style="grid-column:3;grid-row:1;display:flex;flex-direction:column;gap:4px">
+    <!-- RabbitMQ -->
+    <div class="pnl" style="flex:1;position:relative" id="broker-panel">
+      <div id="bpo-broker" class="bpo">⊙ BREAKPOINT HIT</div>
+      <div class="ph"><span style="color:var(--broker)">⬡</span><span style="color:var(--broker)">Message Broker</span><span style="color:#475569">— RabbitMQ</span></div>
+      <div class="pb">
+        <div class="bs">
+          <div class="bst"><div class="n" id="br-ready" style="color:var(--broker)">0</div><div style="color:#64748b;font-size:7px">READY</div></div>
+          <div class="bst"><div class="n" id="br-unack" style="color:var(--vip)">0</div><div style="color:#64748b;font-size:7px">UNACKED</div></div>
+          <div class="bst"><div class="n" id="br-total" style="color:var(--ok)">0</div><div style="color:#64748b;font-size:7px">TOTAL</div></div>
+        </div>
+        <div class="bq" id="br-list"><div style="color:#475569;font-size:9px;font-style:italic;padding:4px">Queue empty.</div></div>
+      </div>
+    </div>
+    <!-- Go Worker -->
+    <div class="pnl" style="flex:1;position:relative" id="go-panel">
+      <div id="bpo-go" class="bpo">⊙ BREAKPOINT HIT</div>
+      <div class="ph"><span style="color:var(--go)">⚡</span><span style="color:var(--go)">Consumer</span><span style="color:#475569">— Go Backend</span></div>
+      <div class="pb">
+        <div class="gi"><span style="font-size:8px;color:#64748b">goroutine[1]</span><div class="gb"><div id="g-fill" class="gf" style="width:0%"></div></div><span id="g-pct" style="font-size:8px;color:#64748b">0%</span></div>
+        <div class="tb" id="tx-block">
+          <div style="font-size:8px;color:#475569;margin-bottom:3px;font-style:italic">// Manual ACK Mode</div>
+          <div class="ts" id="tx-begin"><span class="ti">◉</span> BEGIN TRANSACTION</div>
+          <div class="ts" id="tx-idem"><span class="ti">🔑</span> CHECK idempotency_key</div>
+          <div class="ts" id="tx-logic"><span class="ti">⚙</span> EXECUTE BUSINESS LOGIC</div>
+          <div class="ts" id="tx-commit"><span class="ti">✓</span> COMMIT → send ACK</div>
+          <div class="ts" id="tx-rollback" style="display:none"><span class="ti">✗</span> ROLLBACK → NO ACK → REQUEUE</div>
+        </div>
+        <div id="w-msg" style="margin-top:4px;font-size:8.5px;color:#64748b;min-height:16px"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- COL 4: Control Panel (spans both rows) -->
+  <div class="cp">
+    <div class="ph" style="flex-shrink:0"><span style="color:var(--proc)">⌘</span><span style="color:var(--proc)">Debugger Controls</span></div>
+    <div style="padding:6px;flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:6px">
+      <div class="esi" id="es-bar">
+        <div id="es-dot" style="width:7px;height:7px;border-radius:50%;background:#22c55e;flex-shrink:0"></div>
+        <span id="es-txt" style="font-size:9px;color:#94a3b8">Idle</span>
+      </div>
+      <!-- Pending queue indicator — Array[2] of Linked Lists -->
+      <div id="q-pending" class="qpend">
+        <span>⏳</span><span id="q-pending-txt">0 queued</span>
+        <span id="q-pending-detail" style="font-size:7.5px;color:#64748b;margin-left:4px"></span>
+      </div>
+      <!-- Queue Input -->
+      <div>
+        <div style="font-size:8px;color:#64748b;margin-bottom:3px;text-transform:uppercase;letter-spacing:.05em">— Queue Input —</div>
+        <div style="display:flex;flex-direction:column;gap:3px">
+          <button class="btn btn-v" id="btn-vip" onclick="addQueue('VIP')">+ Add VIP Queue</button>
+          <button class="btn btn-n" id="btn-norm" onclick="addQueue('NORMAL')">+ Add Normal Queue</button>
+        </div>
+      </div>
+      <hr class="sd"/>
+      <!-- Breakpoints -->
+      <div>
+        <div style="font-size:8px;color:#64748b;margin-bottom:3px;text-transform:uppercase;letter-spacing:.05em">— Breakpoints —</div>
+        <div style="display:flex;flex-direction:column;gap:1px">
+          <label class="bpr"><input type="checkbox" id="bp1"/><span class="bpl"><strong>BP1</strong> Flutter — Before SQLite save</span></label>
+          <label class="bpr"><input type="checkbox" id="bp2"/><span class="bpl"><strong>BP2</strong> Network Transit → RabbitMQ</span></label>
+          <label class="bpr"><input type="checkbox" id="bp3"/><span class="bpl"><strong>BP3</strong> Broker — Message Queued</span></label>
+          <label class="bpr"><input type="checkbox" id="bp4"/><span class="bpl"><strong>BP4</strong> Go Worker — Before COMMIT</span></label>
+          <label class="bpr"><input type="checkbox" id="bp5"/><span class="bpl"><strong>BP5</strong> Network — ACK → Flutter</span></label>
+          <label class="bpr"><input type="checkbox" id="bp6"/><span class="bpl"><strong>BP6</strong> Isolate — Before SQLite Synced</span></label>
+        </div>
+      </div>
+      <hr class="sd"/>
+      <!-- Execution -->
+      <div>
+        <div style="font-size:8px;color:#64748b;margin-bottom:3px;text-transform:uppercase;letter-spacing:.05em">— Execution —</div>
+        <div style="display:flex;flex-direction:column;gap:3px">
+          <button class="btn btn-r" id="btn-resume" onclick="resumeExec()" disabled>▶ Resume Play</button>
+          <button class="btn btn-s" id="btn-step" onclick="stepOver()" disabled>⇥ Step Over</button>
+        </div>
+      </div>
+      <hr class="sd"/>
+      <!-- Network -->
+      <div>
+        <div style="font-size:8px;color:#64748b;margin-bottom:3px;text-transform:uppercase;letter-spacing:.05em">— Network —</div>
+        <button class="btn btn-w" id="btn-net" onclick="toggleNet()">⚡ Toggle Network [ONLINE]</button>
+      </div>
+      <hr class="sd"/>
+      <!-- Chaos -->
+      <div>
+        <div style="font-size:8px;color:var(--err);margin-bottom:3px;text-transform:uppercase;letter-spacing:.05em">— Chaos Engineering —</div>
+        <div style="display:flex;flex-direction:column;gap:3px">
+          <button class="btn btn-d" id="btn-crash" onclick="chaosDbCrash()">💥 Simulate DB Crash</button>
+          <button class="btn btn-g" id="btn-ghost" onclick="chaosGhost()">👻 Simulate Ghost Queue</button>
+        </div>
+        <div id="chaos-ind" class="ci" style="margin-top:4px"><span>⚠</span><span id="chaos-msg"></span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- COL 1, ROW 2: Main DB -->
+  <div class="pnl" style="grid-column:1;grid-row:2">
+    <div class="ph"><span style="color:var(--done)">⊞</span><span style="color:var(--done)">Main DB</span><span style="color:#475569">— Relational</span></div>
+    <div class="pb" style="padding:0;overflow:auto">
+      <table class="dbt"><thead><tr><th>queue_id</th><th>queue_no</th><th>pri</th><th>status</th><th>created_at</th></tr></thead>
+      <tbody id="db-body"><tr><td colspan="5" style="color:#475569;font-style:italic;padding:4px">No records.</td></tr></tbody></table>
+    </div>
+  </div>
+
+  <!-- COL 2-3, ROW 2: Console (FIXED grid-column) -->
+  <div class="pnl conpnl">
+    <div class="ph" style="justify-content:space-between">
+      <div style="display:flex;align-items:center;gap:6px"><span style="color:#7c3aed">▸</span><span style="color:#7c3aed">System State Console</span><span style="color:#475569">— Real-time</span></div>
+      <button onclick="clearCon()" style="background:none;border:none;color:#475569;cursor:pointer;font-size:9px;font-family:inherit">✕ clear</button>
+    </div>
+    <div id="clog"></div>
+  </div>
+
+</div>
+
+<!-- Animated Packet & Tooltip -->
+<div id="dpkt">PAYLOAD</div>
+<div id="ptt" class="tt">🖨️ Slip Printed!</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+//  SYSTEM STATE
+// ═══════════════════════════════════════════════════════════
+const S = {
+  net: true,              // network online
+  running: false,         // pipeline active
+  dbCrash: false,         // chaos: db crash armed
+  ghostArmed: false,      // chaos: ghost queue armed
+  vipCtr: 0, normCtr: 0, // auto-increment counters
+  mem: { vip: [], normal: [] },   // in-memory linked lists
+  sqlite: [],                      // local SQLite rows
+  broker: [],                      // RabbitMQ messages
+  brokerTotal: 0,
+  db: [],                          // main DB records
+  processedKeys: new Set(),        // idempotency registry
+};
+
+// ═══════════════════════════════════════════════════════════
+//  Array[2] of Linked Lists → S.mem.vip (idx 0), S.mem.normal (idx 1)
+//  Enqueue: addQueue() → O(1) tail append to S.mem
+//  Dequeue: drainPipeline() → scan idx 0 (VIP) first → O(1) head removal
+//  Status: 'pending' → waiting | 'processing' → in pipeline | 'requeued' → crash recovery
+// ═══════════════════════════════════════════════════════════
+
+let _vipG = 0, _normG = 0;
+
+// ═══════════════════════════════════════════════════════════
+//  SAFE HTML ESCAPE
+// ═══════════════════════════════════════════════════════════
+const _escDiv = document.createElement('div');
+function esc(s) { _escDiv.textContent = s; return _escDiv.innerHTML; }
+
+// ═══════════════════════════════════════════════════════════
+//  UUID (fixed operator precedence bug)
+// ═══════════════════════════════════════════════════════════
+function uuid() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0;
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+  });
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ═══════════════════════════════════════════════════════════
+//  ASYNC STATE MACHINE — PAUSE / RESUME / STEP-OVER
+//  [FIX #3] Step Over now uses _forceNextPause flag
+// ═══════════════════════════════════════════════════════════
+let _resolver = null;
+let _forceNextPause = false;
+
+function pause(label, bpId) {
+  return new Promise(resolve => {
+    const checked = document.getElementById(bpId)?.checked;
+    const shouldPause = checked || _forceNextPause;
+    if (!shouldPause) { resolve(); return; }
+    _forceNextPause = false;   // consumed
+    _resolver = resolve;
+    setES('paused', `⊙ Paused at ${label}`);
+    enableEB(true);
+    hlBP(bpId);
+    clog('bp', label, `▶ BREAKPOINT HIT — Click "Resume" or "Step Over".`);
+  });
+}
+
+function resumeExec() {
+  if (!_resolver) return;
+  _forceNextPause = false;
+  const r = _resolver; _resolver = null;
+  enableEB(false); clearHL();
+  setES('running', 'Running…');
+  r();
+}
+
+function stepOver() {
+  if (!_resolver) return;
+  _forceNextPause = true;   // [FIX #3] Force next pause() to trigger
+  const r = _resolver; _resolver = null;
+  enableEB(false); clearHL();
+  setES('stepping', 'Stepping…');
+  r();
+}
+
+function enableEB(on) {
+  document.getElementById('btn-resume').disabled = !on;
+  document.getElementById('btn-step').disabled = !on;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  CONSOLE  [FIX #5] step label now rendered; [FIX #9] XSS-safe
+// ═══════════════════════════════════════════════════════════
+let _seq = 0;
+function clog(type, step, msg, json) {
+  const el = document.getElementById('clog');
+  const now = new Date();
+  const t = `${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}.${String(now.getMilliseconds()).padStart(3,'0')}`;
+  const div = document.createElement('div');
+  div.className = 'le2';
+  // Build safely with textContent where dynamic data goes
+  const tSpan = document.createElement('span'); tSpan.className = 'lt'; tSpan.textContent = t;
+  const sSpan = document.createElement('span'); sSpan.className = 'ls';
+  sSpan.style.color = '#7c3aed'; sSpan.textContent = `[${step}]`;
+  const mSpan = document.createElement('span'); mSpan.className = 'lm ' + type;
+  mSpan.textContent = msg;
+  div.appendChild(tSpan); div.appendChild(sSpan); div.appendChild(mSpan);
+  if (json) {
+    const jd = document.createElement('div'); jd.className = 'lj';
+    jd.textContent = typeof json === 'string' ? json : JSON.stringify(json, null, 2);
+    div.appendChild(jd);
+  }
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+}
+
+function clearCon() { document.getElementById('clog').innerHTML = ''; _seq = 0; }
+
+// [FIX #2] Renamed parameter from `state` to `mode` to avoid shadowing global S
+function setES(mode, text) {
+  const dot = document.getElementById('es-dot');
+  const txt = document.getElementById('es-txt');
+  const smD = document.getElementById('sm-dot');
+  const smS = document.getElementById('sm-status');
+  txt.textContent = text; smS.textContent = text;
+  const c = { running:'#22c55e', paused:'#ec4899', stepping:'#a855f7', idle:'#64748b', error:'#ef4444' }[mode] || '#64748b';
+  dot.style.background = c; smD.style.background = c;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  BREAKPOINT HIGHLIGHT HELPERS
+// ═══════════════════════════════════════════════════════════
+const bpPanelMap = { bp1:'flutter-panel', bp2:'flutter-panel', bp3:'broker-panel', bp4:'go-panel', bp5:'broker-panel', bp6:'flutter-panel' };
+const bpOverlayMap = { bp1:'bpo-flutter', bp2:'bpo-flutter', bp3:'bpo-broker', bp4:'bpo-go', bp5:'bpo-broker', bp6:'bpo-flutter' };
+
+function hlBP(id) {
+  const p = bpPanelMap[id]; const o = bpOverlayMap[id];
+  if (p) document.getElementById(p)?.classList.add('hl');
+  if (o) { const e = document.getElementById(o); if (e) e.style.display = 'block'; }
+}
+function clearHL() {
+  ['flutter-panel','broker-panel','go-panel'].forEach(id => document.getElementById(id)?.classList.remove('hl'));
+  ['bpo-flutter','bpo-broker','bpo-go'].forEach(id => { const e = document.getElementById(id); if (e) e.style.display = 'none'; });
+}
+
+// ═══════════════════════════════════════════════════════════
+//  RENDER: Memory (Linked Lists)  [FIX #10] Single-node shows HEAD/TAIL
+// ═══════════════════════════════════════════════════════════
+function renderMem() {
+  renderLL('vip-list',  S.mem.vip,    'vip');
+  renderLL('norm-list', S.mem.normal, 'normal');
+}
+function renderLL(cid, arr, type) {
+  const c = document.getElementById(cid);
+  if (!arr.length) { c.innerHTML = '<span class="eq">empty</span>'; return; }
+  c.innerHTML = '';
+  arr.forEach((n, i) => {
+    const w = document.createElement('div'); w.className = 'qn';
+    const cls = (n.status === 'processing' || n.status === 'requeued') ? 'processing' : type;
+    const box = document.createElement('div'); box.className = 'nb ' + cls; box.textContent = n.queueNum;
+    const lbl = document.createElement('div'); lbl.className = 'nl';
+    // [FIX #10] correct pointer labels
+    if (arr.length === 1) lbl.textContent = 'HEAD/TAIL';
+    else if (i === 0) lbl.textContent = 'HEAD';
+    else if (i === arr.length - 1) lbl.textContent = 'TAIL';
+    else lbl.textContent = `[${i}]`;
+    w.appendChild(box); w.appendChild(lbl); c.appendChild(w);
+    if (i < arr.length - 1) { const a = document.createElement('span'); a.className = 'na'; a.textContent = '→'; c.appendChild(a); }
+  });
+  const ta = document.createElement('span'); ta.className = 'na'; ta.textContent = '→'; c.appendChild(ta);
+  const t = document.createElement('div'); t.className = 'tm'; t.textContent = '∅'; c.appendChild(t);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  RENDER: SQLite
+// ═══════════════════════════════════════════════════════════
+function renderSQ() {
+  const tb = document.getElementById('sq-body');
+  if (!S.sqlite.length) { tb.innerHTML = '<tr><td colspan="3" style="color:#475569;font-style:italic;padding:4px">No records.</td></tr>'; return; }
+  tb.innerHTML = '';
+  [...S.sqlite].reverse().slice(0, 14).forEach(r => {
+    const tr = document.createElement('tr');
+    const td1 = document.createElement('td'); td1.style.color = r.queueNum[0]==='V' ? 'var(--vip)' : 'var(--norm)'; td1.style.fontWeight = '700'; td1.textContent = r.queueNum;
+    const td2 = document.createElement('td'); td2.className = r.status === 'Pending_Sync' ? 'bps' : 'bsy'; td2.textContent = r.status;
+    const td3 = document.createElement('td'); td3.className = 'ik'; td3.title = r.idempotencyKey; td3.textContent = r.idempotencyKey.slice(0,8) + '…';
+    tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3); tb.appendChild(tr);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+//  RENDER: Broker  [FIX #6] in-transit class applied to first (newest) card
+// ═══════════════════════════════════════════════════════════
+function renderBR() {
+  const list = document.getElementById('br-list');
+  document.getElementById('br-ready').textContent = S.broker.length;
+  document.getElementById('br-total').textContent = S.brokerTotal;
+  if (!S.broker.length) {
+    list.innerHTML = '<div style="color:#475569;font-size:9px;font-style:italic;padding:4px">Queue empty.</div>';
+    document.getElementById('br-unack').textContent = '0';
+    return;
+  }
+  list.innerHTML = '';
+  // Show newest first — index 0 of reversed is the newest
+  const rev = [...S.broker].reverse();
+  rev.forEach((msg, i) => {
+    const card = document.createElement('div');
+    card.className = 'mc' + (i === 0 ? ' fresh' : '');  // [FIX #6] newest card gets animation
+    if (msg.requeued) { const rb = document.createElement('span'); rb.className = 'rb'; rb.textContent = 'REQUEUED'; card.appendChild(rb); }
+    const p = msg.payload;
+    const c = p.priority_level === 0 ? 'var(--vip)' : 'var(--norm)';
+    const d1 = document.createElement('div');
+    d1.innerHTML = `<span class="mk">queue_number: </span><span class="mv" style="color:${c};font-weight:700">${esc(p.queue_number)}</span>`;
+    const d2 = document.createElement('div');
+    d2.innerHTML = `<span class="mk">priority: </span><span class="mv">${p.priority_level === 0 ? 'VIP (0)' : 'Normal (1)'}</span>`;
+    const d3 = document.createElement('div');
+    d3.innerHTML = `<span class="mk">idem_key: </span><span class="mv ik">${esc(p.idempotency_key.slice(0,10))}…</span>`;
+    card.appendChild(d1); card.appendChild(d2); card.appendChild(d3);
+    list.appendChild(card);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+//  RENDER: Main DB
+// ═══════════════════════════════════════════════════════════
+function renderDB() {
+  const tb = document.getElementById('db-body');
+  if (!S.db.length) { tb.innerHTML = '<tr><td colspan="5" style="color:#475569;font-style:italic;padding:4px">No records.</td></tr>'; return; }
+  tb.innerHTML = '';
+  [...S.db].reverse().slice(0, 14).forEach((r, i) => {
+    const tr = document.createElement('tr'); if (i === 0) tr.className = 'nr';
+    const sClass = { pending:'sb-pend', processing:'sb-proc', completed:'sb-done' }[r.status] || '';
+    const td1 = document.createElement('td'); td1.style.color = '#475569'; td1.title = r.queueId; td1.textContent = r.queueId.slice(0,8) + '…';
+    const td2 = document.createElement('td'); td2.style.color = r.queueNum[0]==='V' ? 'var(--vip)' : 'var(--norm)'; td2.style.fontWeight = '700'; td2.textContent = r.queueNum;
+    const td3 = document.createElement('td'); td3.style.textAlign = 'center'; td3.textContent = r.priority;
+    const td4 = document.createElement('td'); const badge = document.createElement('span'); badge.className = 'sb ' + sClass; badge.textContent = r.status; td4.appendChild(badge);
+    const td5 = document.createElement('td'); td5.style.color = '#475569'; td5.textContent = r.createdAt;
+    tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3); tr.appendChild(td4); tr.appendChild(td5); tb.appendChild(tr);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+//  TX Block & Worker Helpers
+// ═══════════════════════════════════════════════════════════
+function setTX(id, mode) {
+  const el = document.getElementById(id); if (!el) return;
+  el.className = 'ts' + (mode !== 'idle' ? ' ' + mode : '');
+  if (mode === 'active') {
+    const pcts = { 'tx-begin':20, 'tx-idem':45, 'tx-logic':70, 'tx-commit':100, 'tx-rollback':100 };
+    const pct = pcts[id] || 50;
+    document.getElementById('g-fill').style.width = pct + '%';
+    document.getElementById('g-pct').textContent = pct + '%';
+  }
+}
+function resetTX() {
+  ['tx-begin','tx-idem','tx-logic','tx-commit','tx-rollback'].forEach(id => { const e = document.getElementById(id); if (e) e.className = 'ts'; });
+  document.getElementById('tx-rollback').style.display = 'none';
+  document.getElementById('g-fill').style.width = '0%';
+  document.getElementById('g-pct').textContent = '0%';
+  document.getElementById('w-msg').textContent = '';
+}
+function isolateLog(type, msg) {
+  const l = document.getElementById('iso-log');
+  const d = document.createElement('div'); d.className = 'l' + type[0]; d.textContent = '▸ ' + msg;
+  l.appendChild(d); l.scrollTop = l.scrollHeight;
+}
+function setIso(active, label) {
+  const d = document.getElementById('iso-dot'), s = document.getElementById('iso-state');
+  d.style.color = active ? '#22c55e' : '#64748b';
+  s.textContent = label; s.style.color = active ? '#22c55e' : '#64748b';
+}
+
+// ═══════════════════════════════════════════════════════════
+//  Animated Packet
+// ═══════════════════════════════════════════════════════════
+function animPkt(fromEl, toEl, label, color) {
+  return new Promise(resolve => {
+    const pkt = document.getElementById('dpkt');
+    const f = fromEl.getBoundingClientRect(), t = toEl.getBoundingClientRect();
+    pkt.textContent = label; pkt.style.background = color; pkt.style.color = '#000';
+    pkt.style.left = (f.left + f.width/2) + 'px'; pkt.style.top = (f.top + f.height/2) + 'px';
+    pkt.style.display = 'block'; pkt.style.transition = 'none';
+    pkt.getBoundingClientRect(); // Force reflow
+    pkt.style.transition = 'left .6s ease-in-out, top .6s ease-in-out';
+    pkt.style.left = (t.left + t.width/2) + 'px'; pkt.style.top = (t.top + t.height/2) + 'px';
+    setTimeout(() => { pkt.style.display = 'none'; resolve(); }, 650);
+  });
+}
+function showSlip(qn) {
+  const tt = document.getElementById('ptt');
+  tt.textContent = `🖨️ Slip Printed: ${qn} — Instantly!`;
+  tt.style.display = 'block';
+  const fp = document.getElementById('flutter-panel').getBoundingClientRect();
+  tt.style.left = (fp.left + fp.width/2) + 'px';
+  tt.style.top = (fp.top + 30) + 'px';
+  setTimeout(() => tt.style.display = 'none', 2200);
+}
+function showChaos(msg) {
+  const el = document.getElementById('chaos-ind'), m = document.getElementById('chaos-msg');
+  m.textContent = msg; el.style.display = 'flex'; setTimeout(() => el.style.display = 'none', 4500);
+}
+function updatePendQ() {
+  const el = document.getElementById('q-pending'), txt = document.getElementById('q-pending-txt');
+  const detail = document.getElementById('q-pending-detail');
+  const vipP = S.mem.vip.filter(n => n.status === 'pending').length;
+  const normP = S.mem.normal.filter(n => n.status === 'pending').length;
+  const total = vipP + normP;
+  if (total > 0) {
+    el.style.display = 'flex';
+    txt.textContent = total + ' queued';
+    detail.textContent = `[VIP:${vipP} Normal:${normP}]`;
+  } else {
+    el.style.display = 'none';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  MAIN STATE MACHINE — QUEUE PIPELINE
+//  [FIX #4] isResync parameter skips SQLite insert/counter update
+// ═══════════════════════════════════════════════════════════
+async function processQueue(queueNum, priority, idempotencyKey, isResync) {
+  S.running = true;
+  const prLabel = priority === 0 ? 'VIP' : 'Normal';
+
+  clog('info', 'START', `Pipeline started for ${queueNum} [${prLabel}]`,
+    { queue_number: queueNum, priority_level: priority, idempotency_key: idempotencyKey });
+
+  // ─── PHASE 1: UI Thread ───────────────────
+  document.getElementById('ui-action').textContent = `Processing ${queueNum}`;
+  await sleep(200);
+
+  // ─── BP1: Before SQLite save ──────────────
+  if (!isResync) {
+    clog('info', 'BP1', `[Flutter UI] About to save ${queueNum} to Local SQLite.`);
+    clog('rationale', 'BP1', `Engineering Rationale: Saving locally first ensures the queue is never lost. Heart of Offline-First Architecture.`);
+    await pause('BP1: Flutter — Before SQLite save', 'bp1');
+
+    // Save to SQLite [FIX #4: only for fresh queues]
+    S.sqlite.push({ queueNum, status: 'Pending_Sync', idempotencyKey, createdAt: new Date().toISOString() });
+    renderSQ();
+    clog('ok', 'SQLite', `Row inserted: ${queueNum} → Pending_Sync`);
+
+    // Update UI counters [FIX #4: only for fresh queues]
+    if (priority === 0) { S.vipCtr++; document.getElementById('ui-vip').textContent = S.vipCtr; }
+    else { S.normCtr++; document.getElementById('ui-norm').textContent = S.normCtr; }
+    document.getElementById('ui-last').textContent = queueNum;
+
+    // Print slip
+    showSlip(queueNum);
+    clog('ok', 'PRINT', `🖨️ Slip printed: ${queueNum} — O(1) local operation.`);
+
+    // Memory node already enqueued by addQueue() — no duplicate add
+  } else {
+    clog('info', 'SYNC', `[Background Sync] Re-syncing existing SQLite row: ${queueNum}`);
+  }
+
+  // ─── PHASE 2: Network check ───────────────
+  if (!S.net) {
+    clog('warn', 'NET', `Network OFFLINE. ${queueNum} buffered as Pending_Sync.`);
+    clog('rationale', 'NET', `Throughput maintained 100% — customer has their slip. Isolate syncs when network restores.`);
+    setIso(false, 'Waiting for network…');
+    isolateLog('warn', `Offline. ${queueNum} queued locally.`);
+    // Item saved to SQLite; remove from memory (Background Sync handles re-sync)
+    if (priority === 0) S.mem.vip = S.mem.vip.filter(n => n.idempotencyKey !== idempotencyKey);
+    else S.mem.normal = S.mem.normal.filter(n => n.idempotencyKey !== idempotencyKey);
+    renderMem();
+    document.getElementById('ui-action').textContent = 'Offline Mode';
+    S.running = false;
+    drainPipeline();
+    return;
+  }
+
+  // ─── BP2: Network Transit ─────────────────
+  clog('info', 'BP2', `[Network Transit] Payload about to travel Flutter → RabbitMQ.`);
+  clog('rationale', 'BP2', `Background Isolate fires on separate thread — Main UI never blocked.`);
+  await pause('BP2: Network Transit → RabbitMQ', 'bp2');
+
+  const flE = document.getElementById('flutter-panel'), brE = document.getElementById('broker-panel');
+  setIso(true, 'Syncing…');
+  isolateLog('info', `Publishing ${queueNum} to RabbitMQ…`);
+  await animPkt(flE, brE, `${queueNum} | idem:${idempotencyKey.slice(0,6)}`, '#ec4899');
+
+  // ─── PHASE 3: RabbitMQ ────────────────────
+  const payload = { queue_number: queueNum, priority_level: priority, idempotency_key: idempotencyKey, published_at: new Date().toISOString() };
+  S.broker.push({ payload, requeued: false });
+  S.brokerTotal++;
+  renderBR();
+  clog('ok', 'BROKER', `Message persisted to RabbitMQ disk.`, payload);
+
+  // ─── BP3: Queued ──────────────────────────
+  clog('info', 'BP3', `[RabbitMQ] Message durably queued. Waiting for Consumer.`);
+  clog('rationale', 'BP3', `RabbitMQ wrote to disk. Even broker restart can't lose this. Persistent Queue guarantee.`);
+  await pause('BP3: Broker — Message Queued', 'bp3');
+
+  // ─── PHASE 4: Go Worker Consumes ──────────
+  document.getElementById('br-unack').textContent = '1';
+  renderBR();
+  await animPkt(brE, document.getElementById('go-panel'), `CONSUME: ${queueNum}`, '#06b6d4');
+
+  clog('info', 'GO', `[Go Worker] goroutine spawned. Manual ACK mode.`);
+  clog('rationale', 'GO', `Message stays "Unacked" until worker explicitly confirms.`);
+
+  // DB Transaction
+  resetTX();
+  await sleep(300);
+  setTX('tx-begin', 'active');
+  clog('info', 'TX', `BEGIN — Transaction opened.`);
+  await sleep(400);
+
+  setTX('tx-begin', 'done');
+  setTX('tx-idem', 'active');
+  clog('info', 'TX', `Checking idempotency_key: ${idempotencyKey}`);
+  await sleep(350);
+
+  // Duplicate check
+  if (S.processedKeys.has(idempotencyKey)) {
+    clog('dup', 'IDEM', `⚡ Duplicate detected! Key already processed. Skipping DB insert.`);
+    clog('rationale', 'IDEM', `Idempotency Key prevents Ghost Queues. Skip + fresh ACK = Exactly-once semantics.`);
+    await sleep(400);
+    S.broker.pop(); document.getElementById('br-unack').textContent = '0'; renderBR();
+    const sr = S.sqlite.find(r => r.idempotencyKey === idempotencyKey);
+    if (sr) sr.status = 'Synced'; renderSQ();
+    isolateLog('ok', `Dup ACK: ${queueNum} → Synced`);
+    clog('ok', 'ACK', `Fresh ACK sent. Duplicate resolved gracefully.`);
+    resetTX();
+    // Remove from memory (item was set to 'processing' by drainPipeline)
+    if (priority === 0) S.mem.vip = S.mem.vip.filter(n => n.idempotencyKey !== idempotencyKey);
+    else S.mem.normal = S.mem.normal.filter(n => n.idempotencyKey !== idempotencyKey);
+    renderMem();
+    S.running = false;
+    document.getElementById('ui-action').textContent = '';
+    setIso(false, 'Idle'); setES('idle', 'Idle — Ready');
+    drainPipeline();
+    return;
+  }
+
+  setTX('tx-idem', 'done');
+
+  // ─── BP4: Before COMMIT ───────────────────
+  setTX('tx-logic', 'active');
+  clog('info', 'BP4', `[Go Worker] Business logic executing. ACK withheld.`);
+  clog('rationale', 'BP4', `Manual ACK withheld. If crash occurs now → ROLLBACK + REQUEUE. Zero data loss.`);
+
+  // Mark processing in memory
+  const memArr = priority === 0 ? S.mem.vip : S.mem.normal;
+  const mNode = memArr.find(n => n.idempotencyKey === idempotencyKey);
+  if (mNode) mNode.status = 'processing';
+  renderMem();
+
+  await pause('BP4: Go Worker — Before COMMIT', 'bp4');
+
+  // ─── CHAOS: DB Crash ──────────────────────
+  if (S.dbCrash) {
+    S.dbCrash = false;
+    setTX('tx-logic', 'failed');
+    document.getElementById('tx-rollback').style.display = 'flex';
+    setTX('tx-rollback', 'active');
+    clog('err', 'CRASH', `💥 DB CRASH! Executing ROLLBACK.`);
+    clog('rationale', 'CRASH', `ROLLBACK done. NO ACK → RabbitMQ re-queues message. Another worker will retry.`);
+    showChaos('DB Crashed → ROLLBACK → RE-QUEUED');
+    await sleep(600);
+
+    // Requeue
+    const bMsg = S.broker[S.broker.length - 1];
+    if (bMsg) bMsg.requeued = true;
+    document.getElementById('br-unack').textContent = '0';
+    renderBR();
+
+    if (mNode) mNode.status = 'requeued';
+    renderMem();
+    resetTX();
+    clog('warn', 'MQ', `Message re-queued. Awaiting healthy worker.`);
+
+    S.running = false;
+    document.getElementById('ui-action').textContent = '';
+    setIso(false, 'Idle');
+    setES('idle', 'Idle — (message re-queued)');
+
+    // [FIX #7] Auto re-consume after delay to simulate worker recovery
+    clog('info', 'RECOVERY', `Scheduling automatic re-consumption in 2s (worker recovery)…`);
+    setTimeout(function retryReprocess() {
+      if (S.broker.length > 0 && !S.running) {
+        const msg = S.broker[S.broker.length - 1];
+        clog('info', 'RECOVERY', `Healthy worker picking up re-queued message: ${msg.payload.queue_number}`);
+        msg.requeued = false;
+        const p = msg.payload;
+        setES('running', `Re-processing ${p.queue_number}…`);
+        reprocessFromBroker(p.queue_number, p.priority_level, p.idempotency_key);
+      } else if (S.broker.length > 0) {
+        setTimeout(retryReprocess, 500);
+      }
+    }, 2000);
+    return;
+  }
+
+  setTX('tx-logic', 'done');
+  setTX('tx-commit', 'active');
+  clog('info', 'TX', `Committing to Main DB…`);
+  await sleep(400);
+
+  // Insert DB
+  const dbRec = { queueId: uuid(), queueNum, priority, status: 'processing', createdAt: new Date().toLocaleTimeString() };
+  S.db.push(dbRec); renderDB();
+  S.processedKeys.add(idempotencyKey);
+  setTX('tx-commit', 'done');
+  clog('ok', 'DB', `COMMIT successful.`, dbRec);
+
+  // Remove from broker
+  S.broker.pop();
+  document.getElementById('br-unack').textContent = '0';
+  renderBR();
+
+  // ─── BP5: ACK Transit ─────────────────────
+  clog('info', 'BP5', `[RabbitMQ → Flutter] ACK traveling back to app.`);
+  clog('rationale', 'BP5', `If network drops NOW, app stays Pending_Sync → Ghost Queue on retry.`);
+  await pause('BP5: Network — ACK → Flutter', 'bp5');
+
+  // ─── CHAOS: Ghost Queue ───────────────────
+  if (S.ghostArmed) {
+    S.ghostArmed = false;
+    clog('err', 'GHOST', `👻 Network dropped during ACK transit! App did NOT receive ACK.`);
+    clog('warn', 'GHOST', `SQLite stays Pending_Sync. App will RESEND → Ghost Queue!`);
+    showChaos('Ghost Queue — ACK lost in transit!');
+    await sleep(800);
+
+    clog('warn', 'RESEND', `Network restored. Isolate resending ${queueNum} with same Idempotency Key…`);
+    isolateLog('warn', `Resending ${queueNum} (Ghost scenario)…`);
+
+    S.broker.push({ payload: { ...payload, resent: true }, requeued: false });
+    S.brokerTotal++; renderBR();
+    clog('info', 'GHOST', `Duplicate payload in RabbitMQ. Worker checking Idempotency Key…`);
+    await sleep(800);
+
+    // Worker detects duplicate
+    clog('dup', 'IDEM', `⚡ Duplicate detected! Key '${idempotencyKey}' already processed. Skipping. Fresh ACK.`);
+    S.broker.pop(); renderBR();
+    const sr = S.sqlite.find(r => r.idempotencyKey === idempotencyKey);
+    if (sr) sr.status = 'Synced'; renderSQ();
+    isolateLog('ok', `Ghost Queue resolved via Idempotency.`);
+    clog('ok', 'IDEM', `Ghost Queue neutralized. System state consistent.`);
+
+    const dbR = S.db.find(r => r.queueNum === queueNum);
+    if (dbR) dbR.status = 'completed'; renderDB();
+    if (priority === 0) S.mem.vip = S.mem.vip.filter(n => n.idempotencyKey !== idempotencyKey);
+    else S.mem.normal = S.mem.normal.filter(n => n.idempotencyKey !== idempotencyKey);
+    renderMem();
+
+    S.running = false;
+    document.getElementById('ui-action').textContent = '';
+    setIso(false, 'Idle'); setES('idle', 'Idle — Ready');
+    drainPipeline();
+    return;
+  }
+
+  // Normal ACK
+  await animPkt(brE, flE, `ACK: ${queueNum}`, '#22c55e');
+
+  // ─── BP6: Before SQLite Synced ────────────
+  clog('info', 'BP6', `[Flutter Isolate] ACK received. About to mark Synced.`);
+  clog('rationale', 'BP6', `SQLite updated ONLY after broker confirms. Safe to replay otherwise.`);
+  await pause('BP6: Isolate — Before SQLite Synced', 'bp6');
+
+  const sr = S.sqlite.find(r => r.idempotencyKey === idempotencyKey);
+  if (sr) sr.status = 'Synced'; renderSQ();
+  isolateLog('ok', `${queueNum} → Synced`);
+  clog('ok', 'SQLite', `${queueNum} → Synced`);
+
+  const dbR = S.db.find(r => r.queueNum === queueNum);
+  if (dbR) dbR.status = 'completed'; renderDB();
+
+  // Dequeue from memory (O(1) head removal)
+  if (priority === 0) S.mem.vip = S.mem.vip.filter(n => n.idempotencyKey !== idempotencyKey);
+  else S.mem.normal = S.mem.normal.filter(n => n.idempotencyKey !== idempotencyKey);
+  renderMem();
+
+  clog('ok', 'DONE', `✅ Pipeline complete for ${queueNum}. Dequeued from priority[${priority}].`);
+  clog('rationale', 'DONE', `Architecture validated: LocalDB → Broker → Worker → Main DB → ACK. Data integrity preserved.`);
+
+  document.getElementById('ui-action').textContent = '';
+  setIso(false, 'Idle'); setES('idle', 'Idle — Ready');
+  S.running = false;
+  drainPipeline();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  RE-PROCESS FROM BROKER [FIX #7] handles re-queued messages
+// ═══════════════════════════════════════════════════════════
+async function reprocessFromBroker(queueNum, priority, idempotencyKey) {
+  S.running = true;
+  const brE = document.getElementById('broker-panel');
+
+  document.getElementById('br-unack').textContent = '1';
+  renderBR();
+  await animPkt(brE, document.getElementById('go-panel'), `RE-CONSUME: ${queueNum}`, '#06b6d4');
+
+  clog('info', 'GO', `[Go Worker] Re-consuming re-queued message: ${queueNum}`);
+
+  resetTX(); await sleep(300);
+  setTX('tx-begin', 'active'); clog('info', 'TX', `BEGIN — Transaction re-opened.`); await sleep(400);
+  setTX('tx-begin', 'done');
+
+  setTX('tx-idem', 'active');
+  clog('info', 'TX', `Re-checking idempotency_key: ${idempotencyKey}`);
+  await sleep(350);
+  setTX('tx-idem', 'done');
+
+  setTX('tx-logic', 'active');
+  clog('info', 'TX', `Executing business logic (re-attempt)…`);
+  await sleep(400);
+  setTX('tx-logic', 'done');
+
+  setTX('tx-commit', 'active');
+  clog('info', 'TX', `Committing to Main DB…`);
+  await sleep(400);
+
+  const dbRec = { queueId: uuid(), queueNum, priority, status: 'processing', createdAt: new Date().toLocaleTimeString() };
+  S.db.push(dbRec); renderDB();
+  S.processedKeys.add(idempotencyKey);
+  setTX('tx-commit', 'done');
+  clog('ok', 'DB', `COMMIT successful (re-attempt).`, dbRec);
+
+  S.broker.pop();
+  document.getElementById('br-unack').textContent = '0';
+  renderBR();
+
+  // Send ACK back
+  const flE = document.getElementById('flutter-panel');
+  await animPkt(brE, flE, `ACK: ${queueNum}`, '#22c55e');
+
+  const sr = S.sqlite.find(r => r.idempotencyKey === idempotencyKey);
+  if (sr) sr.status = 'Synced'; renderSQ();
+  isolateLog('ok', `${queueNum} → Synced (recovered)`);
+  clog('ok', 'SQLite', `${queueNum} → Synced after recovery.`);
+
+  const dbR = S.db.find(r => r.queueNum === queueNum);
+  if (dbR) dbR.status = 'completed'; renderDB();
+
+  if (priority === 0) S.mem.vip = S.mem.vip.filter(n => n.idempotencyKey !== idempotencyKey);
+  else S.mem.normal = S.mem.normal.filter(n => n.idempotencyKey !== idempotencyKey);
+  renderMem();
+
+  clog('ok', 'RECOVERY', `✅ Re-queued message fully processed. System recovered.`);
+  resetTX();
+  document.getElementById('ui-action').textContent = '';
+  setIso(false, 'Idle'); setES('idle', 'Idle — Ready');
+  S.running = false;
+  drainPipeline();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  DRAIN — Array[2] of Linked Lists Dequeue
+//  Scans from idx 0 (VIP) → idx 1 (Normal)
+//  Pulls HEAD of first non-empty bucket → O(1)
+// ═══════════════════════════════════════════════════════════
+async function drainPipeline() {
+  if (S.running) { updatePendQ(); return; }
+  // Dequeue from Array[2] of Linked Lists: scan idx 0 (VIP) first → idx 1 (Normal)
+  let item = null, fromIdx = -1;
+  const vipHead = S.mem.vip.find(n => n.status === 'pending');
+  if (vipHead) { item = vipHead; fromIdx = 0; }
+  else { const normHead = S.mem.normal.find(n => n.status === 'pending'); if (normHead) { item = normHead; fromIdx = 1; } }
+  if (!item) { updatePendQ(); return; }
+  item.status = 'processing';
+  renderMem();
+  updatePendQ();
+  const priLabel = fromIdx === 0 ? 'VIP' : 'Normal';
+  const otherPending = fromIdx === 0 ? S.mem.normal.filter(n => n.status === 'pending').length : 0;
+  if (fromIdx === 0 && otherPending > 0) {
+    clog('info', 'PRIORITY', `⚡ Dequeue from mem[0] (VIP): ${item.queueNum} — ${otherPending} Normal item(s) still waiting. O(1) head removal.`);
+  } else {
+    clog('info', 'DEQUEUE', `Dequeue from mem[${fromIdx}] (${priLabel}): ${item.queueNum} — O(1) head removal.`);
+  }
+  setES('running', `Processing ${item.queueNum}…`);
+  await processQueue(item.queueNum, item.priority, item.idempotencyKey, false);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  BACKGROUND SYNC [FIX #4] calls processQueue with isResync=true
+// ═══════════════════════════════════════════════════════════
+let _bgSync = false;
+async function triggerBgSync() {
+  if (_bgSync) return;
+  _bgSync = true;
+  setIso(true, 'Background Sync…');
+  isolateLog('info', 'Network restored. Starting Background Sync…');
+  clog('info', 'SYNC', `[Background Isolate] Beginning Background Sync loop.`);
+  clog('rationale', 'SYNC', `Isolate runs on separate thread — UI stays responsive. Self-Healing mechanism.`);
+
+  const pending = S.sqlite.filter(r => r.status === 'Pending_Sync');
+  for (const row of pending) {
+    if (!S.net) { clog('warn', 'SYNC', `Network dropped. Pausing sync.`); break; }
+    if (S.running) { await sleep(500); continue; } // Wait for current pipeline
+    isolateLog('info', `Syncing ${row.queueNum}…`);
+    clog('info', 'SYNC', `Background Sync: ${row.queueNum} (${row.idempotencyKey.slice(0,8)}…)`);
+    const pri = row.queueNum[0] === 'V' ? 0 : 1;
+    await sleep(300);
+    await processQueue(row.queueNum, pri, row.idempotencyKey, true);
+    await sleep(200);
+  }
+  _bgSync = false;
+  if (S.net) { setIso(false, 'Idle'); clog('ok', 'SYNC', `Background Sync complete.`); }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  PUBLIC ACTIONS
+// ═══════════════════════════════════════════════════════════
+function addQueue(type) {
+  const priority = type === 'VIP' ? 0 : 1;
+  const prefix = type === 'VIP' ? 'V' : 'N';
+  const counter = type === 'VIP' ? ++_vipG : ++_normG;
+  const queueNum = `${prefix}-${String(counter).padStart(3, '0')}`;
+  const idempotencyKey = uuid();
+
+  // Enqueue into Memory — Array[2] of Linked Lists, O(1) tail append
+  const memNode = { id: uuid(), queueNum, idempotencyKey, priority, status: 'pending' };
+  if (priority === 0) S.mem.vip.push(memNode); else S.mem.normal.push(memNode);
+  renderMem();
+  const vipP = S.mem.vip.filter(n => n.status === 'pending').length;
+  const normP = S.mem.normal.filter(n => n.status === 'pending').length;
+  clog('info', 'ENQUEUE', `${queueNum} → mem[${priority}].tail — O(1) append. [VIP pending:${vipP} Normal pending:${normP}]`);
+  drainPipeline();
+}
+
+function toggleNet() {
+  S.net = !S.net;
+  const badge = document.getElementById('net-badge'), btn = document.getElementById('btn-net');
+  if (S.net) {
+    badge.className = 'nbdg non'; badge.textContent = '● ONLINE';
+    btn.className = 'btn btn-w'; btn.textContent = '⚡ Toggle Network [ONLINE]';
+    clog('ok', 'NET', `ONLINE. Background Sync will resume.`);
+    setTimeout(triggerBgSync, 500);
+  } else {
+    badge.className = 'nbdg noff'; badge.textContent = '● OFFLINE';
+    btn.className = 'btn btn-off'; btn.textContent = '⚡ Toggle Network [OFFLINE]';
+    clog('warn', 'NET', `OFFLINE. Offline-First mode. Queues buffered in SQLite.`);
+    setIso(false, 'Network offline');
+    isolateLog('warn', 'Network disconnected.');
+  }
+}
+
+function chaosDbCrash() {
+  if (!S.running && !_resolver) {
+    clog('warn', 'CHAOS', `No active pipeline. Add a queue + enable BP4 first.`);
+    return;
+  }
+  S.dbCrash = true;
+  clog('err', 'CHAOS', `💥 DB Crash armed. Will fire at BP4 boundary.`);
+  showChaos('DB Crash armed → will ROLLBACK at BP4');
+  if (_resolver) resumeExec();
+}
+
+function chaosGhost() {
+  if (!S.running && !_resolver) {
+    clog('warn', 'CHAOS', `No active pipeline. Add a queue + enable BP5 first.`);
+    return;
+  }
+  S.ghostArmed = true;
+  clog('warn', 'CHAOS', `👻 Ghost Queue armed. ACK will be dropped at BP5.`);
+  showChaos('Ghost Queue armed → ACK will be dropped');
+  if (_resolver) resumeExec();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════════════
+clog('info', 'INIT', `Queue Architecture Debugger v3.0 initialized.`);
+clog('rationale', 'INIT', `Array[2] of Linked Lists | SQLite Offline Buffer | RabbitMQ Persistent Broker | Go Worker Manual ACK | Idempotency Key.`);
+clog('info', 'INIT', `Click [Add VIP/Normal Queue] to start. Enable Breakpoints to pause at transitions. Use Step Over to advance one step at a time.`);
+setES('idle', 'Idle — Ready');
+</script>
+</body>
+</html>
