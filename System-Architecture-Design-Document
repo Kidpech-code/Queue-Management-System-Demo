@@ -1,6 +1,6 @@
 # 📄 เอกสารการออกแบบสถาปัตยกรรมระบบคิว (Queue System Architecture Design Document)
 
-**เขียนโดย:** Prof. Hebrew (System Architecture & Engineering)
+**เขียนโดย:** เด็กเป็ด (Kidpech)
 **วัตถุประสงค์:** เพื่ออธิบายโครงสร้างข้อมูล สถาปัตยกรรม และกลไกการรับมือวิกฤตของระบบบริหารจัดการคิวแบบแยกส่วน (Decoupled Queue System)
 
 ---
@@ -13,6 +13,12 @@
 
 - **Array:** ทำหน้าที่แบ่งระดับความสำคัญ (Priority Index) เช่น Index 0 = VIP, Index 1 = Normal
 - **Linked List:** ทำหน้าที่เก็บลำดับคิวในแต่ละความสำคัญแบบ First-In, First-Out (FIFO)
+  > **หมายเหตุ — ทำไมไม่ใช้ Queue ธรรมดา หรือ Priority Queue (Heap)?**
+  >
+  > - **Queue ธรรมดา (Single FIFO):** แยกระดับความสำคัญไม่ได้ — VIP ที่มาทีหลังต้องรอ Normal ที่มาก่อนจนหมด ซึ่งขัดกับข้อกำหนดเรื่อง Fairness
+  > - **Priority Queue (Heap):** Enqueue/Dequeue เป็น $O(\log n)$ ซึ่งช้ากว่า และที่สำคัญคือ Heap ไม่รักษาลำดับ FIFO ภายในระดับเดียวกัน (เช่น VIP-001 อาจถูกดึงหลัง VIP-002 ได้)
+  > - **Array of Linked Lists:** ได้ทั้ง Priority (Array Index), FIFO (Linked List), และ $O(1)$ ทั้ง Enqueue/Dequeue — ครบทุกข้อกำหนดในโครงสร้างเดียว
+  >
   > **การประยุกต์ใช้ใน Relational Database (Main DB):** > แม้ในระดับหน่วยความจำจะใช้ Linked List แต่ในการจัดเก็บถาวร (Persistent Storage) เราจะไม่เก็บข้อมูลเป็น Node ที่ชี้หากันตรงๆ แต่จะออกแบบตาราง (Table) ที่มี Column สำคัญดังนี้:
   >
   > - `queue_id` (Primary Key / UUID)
@@ -201,6 +207,71 @@ sequenceDiagram
   3.  แอปจะดึงข้อมูลคิวที่ยังคงสถานะ `Pending_Sync` ทั้งหมดจากตารางใน SQLite ขึ้นมา
   4.  ทำการวนลูป (Loop) ทยอยส่งข้อมูลที่ตกค้างเหล่านี้ยิงเข้าสู่ Message Broker
   5.  เมื่อฝั่ง Broker รับข้อมูลเรียบร้อยและส่งสัญญาณ `ACK` กลับมายังแอป แอปจึงจะทำการอัปเดตสถานะคิวตัวนั้นใน SQLite ให้เปลี่ยนเป็น `Synced` (หรือลบทิ้งตามแต่การออกแบบ)
+
+---
+
+## 4. ภาพรวมระบบครบวงจร (Full System Overview)
+
+Diagram นี้รวมทุกส่วนของระบบไว้ในภาพเดียว — ตั้งแต่โครงสร้างข้อมูลในหน่วยความจำ, การไหลของข้อมูลผ่าน Broker, การประมวลผลฝั่ง Go Worker, ไปจนถึงกลไกรับมือวิกฤต
+
+```mermaid
+flowchart TD
+    classDef producer fill:#e1f5fe,stroke:#0288d1,color:#01579b
+    classDef broker fill:#fff3e0,stroke:#f57c00,color:#e65100
+    classDef consumer fill:#e8f5e9,stroke:#388e3c,color:#1b5e20
+    classDef db fill:#f3e5f5,stroke:#7b1fa2,color:#4a148c
+    classDef decision fill:#fffde7,stroke:#f9a825,color:#f57f17
+    classDef ok fill:#e8f5e9,stroke:#22c55e,color:#1b5e20
+    classDef err fill:#ffebee,stroke:#ef4444,color:#b71c1c
+
+    subgraph PROD["🖥️  Phase 1 — Flutter Desktop App (Producer)"]
+        UI["Main UI Thread\n• กดออกคิว\n• พิมพ์สลิปทันที"]:::producer
+        MEM["Memory Queue\nArray of Linked Lists\n[ VIP idx:0 | Normal idx:1 ]\nEnqueue / Dequeue = O(1)"]:::producer
+        SQ["Local SQLite\nOffline Buffer\nPending_Sync ↔ Synced"]:::producer
+        ISO["Background Isolate\n(Thread แยก — UI ไม่ค้าง)"]:::producer
+    end
+
+    subgraph BROKER["📨  Phase 2 — RabbitMQ (Message Broker)"]
+        MQ[("Persistent Queue\nบันทึกลง Disk ทันที\nรองรับ ACK / NACK / Re-queue")]:::broker
+    end
+
+    subgraph GOZONE["⚡  Phase 3 — Go Backend (Consumer)"]
+        GW["goroutine Worker\nManual ACK Mode"]:::consumer
+        IDEM{"Idempotency Key\nเคยประมวลผลแล้ว?"}:::decision
+        TX["DB Transaction\nBEGIN → Business Logic → COMMIT"]:::consumer
+        RB["ROLLBACK\n(ไม่ส่ง ACK)"]:::err
+    end
+
+    subgraph DBZONE["🗄️  Main Database"]
+        DB[("queue_id · queue_number\npriority_level · status\ncreated_at")]:::db
+    end
+
+    SLIP["🖨️ สลิปลูกค้า\n(ได้ทันที ไม่ต้องรอ Server)"]:::ok
+    ACK["✅ ACK\nกลับมายัง App"]:::ok
+    DONE["✓ Pipeline Complete\nSQLite → Synced"]:::ok
+
+    UI -->|"Enqueue O(1) tail append"| MEM
+    UI -->|"1. บันทึกก่อนเสมอ"| SQ
+    UI -->|"2. พิมพ์ทันที"| SLIP
+
+    MEM -->|"Dequeue: VIP ก่อน Normal"| ISO
+    SQ -->|"rows ที่ยัง Pending_Sync"| ISO
+
+    ISO -->|"Publish JSON + Idempotency Key\n(Fire & Forget)"| MQ
+
+    MQ -->|"Push Message\n(Unacked)"| GW
+    GW --> IDEM
+
+    IDEM -->|"ใช่ — ซ้ำ → Skip\nส่ง ACK ทันที"| ACK
+    IDEM -->|"ไม่ใช่ — ประมวลผลต่อ"| TX
+
+    TX -->|"สำเร็จ → COMMIT"| DB
+    TX -->|"ล้มเหลว (DB Crash)"| RB
+    RB -->|"Re-queue อัตโนมัติ\nWorker ตัวใหม่รับต่อ"| MQ
+
+    DB -->|"COMMIT สำเร็จ\nส่ง ACK"| ACK
+    ACK -->|"อัปเดต SQLite"| DONE
+```
 
 ---
 

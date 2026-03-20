@@ -1,387 +1,320 @@
 <!DOCTYPE html>
-<html lang="th">
+<html lang="en" class="dark">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>ระบบจัดการคิว — Queue System Architecture Demo</title>
+<title>Decoupled Queue System — Architecture Debugger v3</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;600;700;800&display=swap');
-  :root{--bg:#0f172a;--panel:#1e293b;--border:#334155;--dim:#94a3b8;--vip:#f59e0b;--norm:#3b82f6;--ok:#22c55e;--warn:#f97316;--proc:#a855f7;--done:#10b981;--broker:#ec4899;--go:#06b6d4;--err:#ef4444}
+  :root{--bg:#0f1117;--panel:#161b27;--border:#2a3045;--dim:#6b7280;--vip:#f59e0b;--norm:#3b82f6;--ok:#22c55e;--warn:#f97316;--proc:#a855f7;--done:#10b981;--broker:#ec4899;--go:#06b6d4;--err:#ef4444}
   *{box-sizing:border-box;margin:0;padding:0}
-  body{background:var(--bg);color:#e2e8f0;font-family:'Noto Sans Thai',-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;font-size:12px;height:100vh;overflow:hidden;display:flex;flex-direction:column}
-  code,.mono{font-family:'JetBrains Mono','Fira Code','Courier New',monospace}
-
-  /* Header */
-  .hdr{background:linear-gradient(180deg,#0f172a,#1e293b);border-bottom:1px solid var(--border);padding:8px 16px;display:flex;align-items:center;gap:16px;flex-shrink:0}
+  body{background:var(--bg);color:#e2e8f0;font-family:'JetBrains Mono','Fira Code','Courier New',monospace;font-size:11px;height:100vh;overflow:hidden;display:flex;flex-direction:column}
+  .hdr{background:#0d1120;border-bottom:1px solid var(--border);padding:6px 12px;display:flex;align-items:center;gap:12px;flex-shrink:0}
   .dot{width:8px;height:8px;border-radius:50%;display:inline-block;animation:pdot 1.5s infinite}
   @keyframes pdot{0%,100%{opacity:1}50%{opacity:.3}}
-
-  /* Pipeline Flow */
-  .pipeline{display:flex;align-items:center;gap:0;flex:1;justify-content:center;padding:0 20px}
-  .pip-step{display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;background:rgba(51,65,85,.5);border:1px solid var(--border);transition:all .4s;opacity:.5}
-  .pip-step.active{opacity:1;background:rgba(6,182,212,.15);border-color:var(--go);box-shadow:0 0 12px rgba(6,182,212,.3)}
-  .pip-step.completed{opacity:.8;background:rgba(34,197,94,.1);border-color:var(--ok)}
-  .pip-num{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;background:var(--border);color:#e2e8f0;transition:all .3s}
-  .pip-step.active .pip-num{background:var(--go);color:#0f172a}
-  .pip-step.completed .pip-num{background:var(--ok);color:#0f172a}
-  .pip-label{font-size:10px;color:#94a3b8;white-space:nowrap;font-weight:600}
-  .pip-step.active .pip-label{color:#e2e8f0}
-  .pip-line{width:20px;height:2px;background:var(--border);flex-shrink:0;transition:background .3s}
-  .pip-line.done{background:var(--ok)}
-
-  /* Grid */
-  .grid{display:grid;grid-template-columns:260px 1fr 1fr 240px;grid-template-rows:1fr 1fr;gap:6px;padding:6px;flex:1;overflow:hidden}
-
-  /* Panels */
-  .pnl{background:var(--panel);border:1px solid var(--border);border-radius:8px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.2)}
-  .ph{background:linear-gradient(135deg,#1e293b,#0f172a);border-bottom:1px solid var(--border);padding:6px 10px;display:flex;align-items:center;gap:8px;flex-shrink:0}
-  .ph-icon{font-size:16px}
-  .ph-title{font-size:12px;font-weight:700;letter-spacing:.02em}
-  .ph-desc{font-size:10px;color:#64748b;margin-left:4px}
-  .pb{flex:1;overflow:hidden;padding:8px;display:flex;flex-direction:column;gap:6px}
-
-  /* Memory Queue */
-  .pr{display:flex;align-items:center;gap:8px;min-height:48px}
-  .pi{width:64px;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:6px;font-weight:700;padding:6px 4px;flex-shrink:0}
-  .pl{font-size:9px;color:var(--dim);margin-top:2px}
-  .llc{display:flex;align-items:center;gap:3px;flex:1;overflow-x:auto;overflow-y:hidden;padding:4px 0;scrollbar-width:none}
+  .grid{display:grid;grid-template-columns:240px 1fr 1fr 230px;grid-template-rows:1fr 1fr;gap:4px;padding:4px;flex:1;overflow:hidden}
+  .pnl{background:var(--panel);border:1px solid var(--border);border-radius:6px;display:flex;flex-direction:column;overflow:hidden}
+  .ph{background:#1a2035;border-bottom:1px solid var(--border);padding:4px 8px;display:flex;align-items:center;gap:6px;flex-shrink:0;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
+  .pb{flex:1;overflow:hidden;padding:6px;display:flex;flex-direction:column;gap:4px}
+  .pr{display:flex;align-items:center;gap:6px;min-height:44px}
+  .pi{width:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:4px;font-size:9px;font-weight:700;padding:4px 3px;flex-shrink:0}
+  .pl{font-size:8px;color:var(--dim);margin-top:1px}
+  .llc{display:flex;align-items:center;gap:2px;flex:1;overflow-x:auto;overflow-y:hidden;padding:2px 0;scrollbar-width:none}
   .llc::-webkit-scrollbar{display:none}
   .qn{display:flex;flex-direction:column;align-items:center;flex-shrink:0}
-  .nb{width:52px;height:34px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;font-family:'JetBrains Mono','Fira Code',monospace;border:1.5px solid transparent;transition:all .3s;cursor:default}
+  .nb{width:46px;height:30px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;border:1px solid transparent;transition:all .3s;cursor:default}
   .nb.vip{background:rgba(245,158,11,.15);border-color:var(--vip);color:var(--vip)}
   .nb.normal{background:rgba(59,130,246,.15);border-color:var(--norm);color:var(--norm)}
   .nb.processing{background:rgba(168,85,247,.2);border-color:#a855f7;color:#a855f7;animation:gprc .8s infinite alternate}
-  @keyframes gprc{from{box-shadow:0 0 4px rgba(168,85,247,.4)}to{box-shadow:0 0 12px rgba(168,85,247,.8)}}
-  .na{font-size:14px;color:var(--border);margin:0 2px;flex-shrink:0}
-  .nl{font-size:8px;color:var(--dim);margin-top:2px;text-align:center}
-  .tm{width:30px;height:20px;border:1.5px dashed var(--border);border-radius:4px;font-size:10px;color:var(--dim);display:flex;align-items:center;justify-content:center;flex-shrink:0}
-  .eq{color:var(--dim);font-size:11px;padding:6px;font-style:italic}
-
-  /* Tables */
-  .dbt{width:100%;border-collapse:collapse;font-size:11px;font-family:'JetBrains Mono',monospace}
-  .dbt th{background:#0f172a;color:#94a3b8;padding:5px 6px;text-align:left;border-bottom:1px solid var(--border);font-weight:600;white-space:nowrap;position:sticky;top:0;font-size:10px}
-  .dbt td{padding:4px 6px;border-bottom:1px solid #1e3040;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:90px}
+  @keyframes gprc{from{box-shadow:0 0 4px rgba(168,85,247,.4)}to{box-shadow:0 0 10px rgba(168,85,247,.8)}}
+  .na{font-size:12px;color:var(--border);margin:0 1px;flex-shrink:0}
+  .nl{font-size:7px;color:var(--dim);margin-top:1px;text-align:center}
+  .tm{width:28px;height:18px;border:1px dashed var(--border);border-radius:3px;font-size:8px;color:var(--dim);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .eq{color:var(--dim);font-size:9px;padding:4px;font-style:italic}
+  .dbt{width:100%;border-collapse:collapse;font-size:9px}
+  .dbt th{background:#1a2035;color:#94a3b8;padding:3px 4px;text-align:left;border-bottom:1px solid var(--border);font-weight:600;white-space:nowrap;position:sticky;top:0}
+  .dbt td{padding:2px 4px;border-bottom:1px solid #1e2535;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:80px}
   .dbt tr:last-child td{border-bottom:none}
   .dbt tr.nr{animation:rfl .5s ease-out}
   @keyframes rfl{0%{background:rgba(34,197,94,.3)}100%{background:transparent}}
-  .sb{padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;display:inline-block}
+  .sb{padding:1px 5px;border-radius:3px;font-size:8px;font-weight:700;display:inline-block}
   .sb-pend{background:rgba(249,115,22,.2);color:#f97316}
   .sb-proc{background:rgba(168,85,247,.2);color:#a855f7}
   .sb-done{background:rgba(16,185,129,.2);color:#10b981}
-
-  /* Feature boxes */
-  .ft{background:#0f172a;border:1px solid var(--border);border-radius:6px;padding:6px;flex:1;overflow:hidden;display:flex;flex-direction:column}
-  .th{font-size:10px;color:#94a3b8;font-weight:700;letter-spacing:.03em;text-transform:uppercase;margin-bottom:4px;display:flex;align-items:center;gap:5px}
-  .st{width:100%;border-collapse:collapse;font-size:10px;font-family:'JetBrains Mono',monospace}
-  .st th{background:#0f172a;color:#64748b;padding:3px 4px;text-align:left;border-bottom:1px solid var(--border);font-size:9px}
-  .st td{padding:3px 4px;border-bottom:1px solid #1a2035;white-space:nowrap}
+  .ft{background:#111827;border:1px solid var(--border);border-radius:4px;padding:4px;flex:1;overflow:hidden;display:flex;flex-direction:column}
+  .th{font-size:8px;color:#94a3b8;font-weight:700;letter-spacing:.05em;text-transform:uppercase;margin-bottom:3px;display:flex;align-items:center;gap:4px}
+  .st{width:100%;border-collapse:collapse;font-size:8.5px}
+  .st th{background:#0f1117;color:#64748b;padding:2px 3px;text-align:left;border-bottom:1px solid var(--border);font-size:8px}
+  .st td{padding:2px 3px;border-bottom:1px solid #1a2035;white-space:nowrap}
   .bps{color:#f97316;font-weight:700}.bsy{color:#22c55e;font-weight:700}
-  .il{flex:1;overflow-y:auto;font-size:10px;color:#64748b;scrollbar-width:none;font-family:'JetBrains Mono',monospace}
+  .il{flex:1;overflow-y:auto;font-size:8px;color:#64748b;scrollbar-width:none}
   .il::-webkit-scrollbar{display:none}
-  .il div{padding:2px 0;border-bottom:1px solid #1a2035}
+  .il div{padding:1px 0;border-bottom:1px solid #1a2035}
   .il .li{color:#38bdf8}.il .lo{color:#22c55e}.il .lw{color:#f97316}.il .le{color:#ef4444}.il .ld{color:#a855f7}
-
-  /* Broker */
-  .bq{display:flex;flex-direction:column;gap:4px;overflow-y:auto;scrollbar-width:none;flex:1}
+  .bq{display:flex;flex-direction:column;gap:3px;overflow-y:auto;scrollbar-width:none;flex:1}
   .bq::-webkit-scrollbar{display:none}
-  .mc{background:#0f172a;border:1px solid #2a3045;border-radius:6px;padding:6px 8px;font-size:10px;font-family:'JetBrains Mono',monospace;transition:all .3s;position:relative;overflow:hidden}
+  .mc{background:#0f1117;border:1px solid #2a3045;border-radius:4px;padding:4px 6px;font-size:8.5px;transition:all .3s;position:relative;overflow:hidden}
   .mc.fresh{border-color:var(--broker);background:rgba(236,72,153,.08);animation:csi .4s ease-out}
   @keyframes csi{from{transform:translateX(-20px);opacity:0}to{transform:translateX(0);opacity:1}}
-  .mc .mk{color:#94a3b8;font-size:9px}.mc .mv{color:#e2e8f0}
-  .mc .rb{position:absolute;top:3px;right:6px;font-size:8px;background:rgba(239,68,68,.2);color:#ef4444;border:1px solid #ef4444;padding:1px 5px;border-radius:3px;font-weight:700}
-  .bs{display:flex;gap:8px;margin-bottom:6px}
-  .bst{background:#0f172a;border:1px solid var(--border);border-radius:6px;padding:6px 8px;text-align:center;flex:1}
-  .bst .n{font-size:18px;font-weight:800;font-family:'JetBrains Mono',monospace}
-
-  /* Go Worker */
-  .tb{background:#0f172a;border:1px solid var(--border);border-radius:6px;padding:8px;display:flex;flex-direction:column;gap:3px}
-  .ts{display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:4px;font-size:11px;transition:all .3s;opacity:.35}
-  .ts.active{opacity:1;background:rgba(6,182,212,.12);border-left:3px solid #06b6d4;padding-left:8px}
-  .ts.done{opacity:.7}
-  .ts.failed{opacity:1;background:rgba(239,68,68,.1);border-left:3px solid #ef4444;padding-left:8px;color:#ef4444}
-  .ti{font-size:12px;width:16px;text-align:center}
-  .gi{display:flex;align-items:center;gap:6px;margin-bottom:6px}
-  .gb{height:6px;border-radius:3px;background:#1e2535;flex:1;overflow:hidden}
-  .gf{height:100%;background:linear-gradient(90deg,#06b6d4,#3b82f6);border-radius:3px;transition:width .4s ease}
-
-  /* Control Panel */
-  .cp{grid-column:4;grid-row:1/3;background:var(--panel);border:1px solid var(--border);border-radius:8px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.2)}
-  .btn{width:100%;padding:8px 10px;border-radius:6px;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid transparent;transition:all .15s;text-align:center}
+  .mc .mk{color:#94a3b8;font-size:8px}.mc .mv{color:#e2e8f0}
+  .mc .rb{position:absolute;top:2px;right:4px;font-size:7px;background:rgba(239,68,68,.2);color:#ef4444;border:1px solid #ef4444;padding:0 3px;border-radius:2px}
+  .bs{display:flex;gap:6px;margin-bottom:4px}
+  .bst{background:#0f1117;border:1px solid var(--border);border-radius:3px;padding:3px 6px;font-size:9px;text-align:center;flex:1}
+  .bst .n{font-size:14px;font-weight:700}
+  .tb{background:#0f1117;border:1px solid var(--border);border-radius:4px;padding:6px;display:flex;flex-direction:column;gap:2px}
+  .ts{display:flex;align-items:center;gap:6px;padding:3px 4px;border-radius:3px;font-size:9px;transition:all .3s;opacity:.35}
+  .ts.active{opacity:1;background:rgba(6,182,212,.1);border-left:2px solid #06b6d4;padding-left:6px}
+  .ts.done{opacity:.7}.ts.failed{opacity:1;background:rgba(239,68,68,.1);border-left:2px solid #ef4444;padding-left:6px;color:#ef4444}
+  .ti{font-size:10px;width:14px;text-align:center}
+  .gi{display:flex;align-items:center;gap:4px;margin-bottom:4px}
+  .gb{height:4px;border-radius:2px;background:#1e2535;flex:1;overflow:hidden}
+  .gf{height:100%;background:linear-gradient(90deg,#06b6d4,#3b82f6);border-radius:2px;transition:width .4s ease}
+  .cp{grid-column:4;grid-row:1/3;background:var(--panel);border:1px solid var(--border);border-radius:6px;display:flex;flex-direction:column;overflow:hidden}
+  .btn{width:100%;padding:5px 8px;border-radius:4px;font-family:inherit;font-size:10px;font-weight:700;cursor:pointer;border:1px solid transparent;transition:all .15s;text-align:center;letter-spacing:.03em}
   .btn:disabled{opacity:.35;cursor:not-allowed}
-  .btn-v{background:rgba(245,158,11,.12);border-color:var(--vip);color:var(--vip)}.btn-v:hover:not(:disabled){background:rgba(245,158,11,.3)}
-  .btn-n{background:rgba(59,130,246,.12);border-color:var(--norm);color:var(--norm)}.btn-n:hover:not(:disabled){background:rgba(59,130,246,.3)}
-  .btn-r{background:rgba(34,197,94,.12);border-color:#22c55e;color:#22c55e}.btn-r:hover:not(:disabled){background:rgba(34,197,94,.3)}
-  .btn-s{background:rgba(168,85,247,.12);border-color:#a855f7;color:#a855f7}.btn-s:hover:not(:disabled){background:rgba(168,85,247,.3)}
-  .btn-d{background:rgba(239,68,68,.12);border-color:#ef4444;color:#ef4444}.btn-d:hover:not(:disabled){background:rgba(239,68,68,.3)}
-  .btn-g{background:rgba(236,72,153,.12);border-color:#ec4899;color:#ec4899}.btn-g:hover:not(:disabled){background:rgba(236,72,153,.3)}
-  .btn-w{background:rgba(6,182,212,.12);border-color:#06b6d4;color:#06b6d4}.btn-w:hover:not(:disabled){background:rgba(6,182,212,.3)}
-  .btn-off{background:rgba(239,68,68,.12);border-color:#ef4444;color:#ef4444}
-  .bpr{display:flex;align-items:flex-start;gap:6px;padding:4px 6px;border-radius:4px;cursor:pointer;transition:background .1s}
+  .btn-v{background:rgba(245,158,11,.15);border-color:var(--vip);color:var(--vip)}.btn-v:hover:not(:disabled){background:rgba(245,158,11,.3)}
+  .btn-n{background:rgba(59,130,246,.15);border-color:var(--norm);color:var(--norm)}.btn-n:hover:not(:disabled){background:rgba(59,130,246,.3)}
+  .btn-r{background:rgba(34,197,94,.15);border-color:#22c55e;color:#22c55e}.btn-r:hover:not(:disabled){background:rgba(34,197,94,.3)}
+  .btn-s{background:rgba(168,85,247,.15);border-color:#a855f7;color:#a855f7}.btn-s:hover:not(:disabled){background:rgba(168,85,247,.3)}
+  .btn-d{background:rgba(239,68,68,.15);border-color:#ef4444;color:#ef4444}.btn-d:hover:not(:disabled){background:rgba(239,68,68,.3)}
+  .btn-g{background:rgba(236,72,153,.15);border-color:#ec4899;color:#ec4899}.btn-g:hover:not(:disabled){background:rgba(236,72,153,.3)}
+  .btn-w{background:rgba(6,182,212,.15);border-color:#06b6d4;color:#06b6d4}.btn-w:hover:not(:disabled){background:rgba(6,182,212,.3)}
+  .btn-off{background:rgba(239,68,68,.15);border-color:#ef4444;color:#ef4444}
+  .bpr{display:flex;align-items:flex-start;gap:5px;padding:3px 4px;border-radius:3px;cursor:pointer;transition:background .1s}
   .bpr:hover{background:rgba(255,255,255,.04)}
-  .bpr input[type="checkbox"]{cursor:pointer;accent-color:#ec4899;margin-top:2px;flex-shrink:0;width:14px;height:14px}
-  .bpl{font-size:11px;color:#94a3b8;line-height:1.5}.bpl strong{color:#ec4899;font-weight:700}
-  .sd{border:none;border-top:1px solid var(--border);margin:6px 0}
-  .esi{display:flex;align-items:center;gap:6px;padding:6px 10px;font-size:11px;border-radius:4px;margin-bottom:4px;background:rgba(15,23,42,.5)}
-  .sec-label{font-size:9px;color:#475569;text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-bottom:4px}
-
-  /* Console */
+  .bpr input[type="checkbox"]{cursor:pointer;accent-color:#ec4899;margin-top:1px;flex-shrink:0}
+  .bpl{font-size:9px;color:#94a3b8;line-height:1.4}.bpl strong{color:#ec4899;font-weight:700}
+  .sd{border:none;border-top:1px solid var(--border);margin:4px 0}
+  .esi{display:flex;align-items:center;gap:5px;padding:4px 8px;font-size:9px;border-radius:3px;margin-bottom:4px}
+  /* Console — row 2, col 2-3 (FIXED: was 1/4, overlapped DB panel) */
   .conpnl{grid-column:2/4;grid-row:2;overflow:hidden}
-  #clog{flex:1;overflow-y:auto;padding:6px 8px;display:flex;flex-direction:column;gap:2px;scrollbar-width:thin;scrollbar-color:#2a3045 transparent;font-family:'JetBrains Mono',monospace}
-  .le2{display:flex;gap:8px;padding:3px 0;border-bottom:1px solid #1a2035;line-height:1.5;animation:la .2s ease-out;flex-wrap:wrap;font-size:11px}
+  #clog{flex:1;overflow-y:auto;padding:4px 6px;display:flex;flex-direction:column;gap:1px;scrollbar-width:thin;scrollbar-color:#2a3045 transparent}
+  .le2{display:flex;gap:6px;padding:2px 0;border-bottom:1px solid #1a2035;line-height:1.5;animation:la .2s ease-out;flex-wrap:wrap}
   @keyframes la{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
-  .lt{color:#475569;flex-shrink:0;min-width:55px}.ls{flex-shrink:0;min-width:55px;font-weight:700}.lm{flex:1;min-width:0}
+  .lt{color:#475569;flex-shrink:0;min-width:50px}.ls{flex-shrink:0;min-width:50px;font-weight:700}.lm{flex:1;min-width:0}
   .lm.info{color:#38bdf8}.lm.ok{color:#22c55e}.lm.warn{color:#f59e0b}.lm.bp{color:#ec4899}.lm.err{color:#ef4444}
   .lm.rationale{color:#a78bfa;font-style:italic}.lm.dup{color:#a855f7;font-weight:700}
-  .lj{color:#94a3b8;font-size:10px;padding-left:10px;word-break:break-all;width:100%}
-
-  /* Animated elements */
-  #dpkt{position:fixed;padding:4px 8px;border-radius:4px;font-size:10px;font-weight:700;pointer-events:none;z-index:9999;display:none;font-family:'JetBrains Mono',monospace}
-  .bpo{position:absolute;top:0;left:0;right:0;background:rgba(236,72,153,.15);border:1px solid #ec4899;border-radius:8px;padding:6px 8px;font-size:11px;color:#ec4899;font-weight:700;text-align:center;z-index:10;display:none}
-  .tt{position:fixed;background:rgba(245,158,11,.95);color:#0f172a;font-size:12px;font-weight:700;padding:6px 12px;border-radius:6px;pointer-events:none;z-index:9998;display:none;transform:translate(-50%,-50%);box-shadow:0 4px 12px rgba(245,158,11,.4)}
-  ::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#334155;border-radius:3px}
-  .nbdg{padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700}
-  .non{background:rgba(34,197,94,.15);color:#22c55e;border:1px solid #22c55e}
-  .noff{background:rgba(239,68,68,.15);color:#ef4444;border:1px solid #ef4444}
-  .hl{border-color:#ec4899!important;box-shadow:0 0 0 2px rgba(236,72,153,.4);transition:all .3s}
-  .ik{font-size:9px;color:#64748b;font-family:'JetBrains Mono',monospace}
-  .ci{align-items:center;gap:5px;padding:5px 8px;background:rgba(239,68,68,.1);border:1px solid #ef4444;border-radius:4px;font-size:11px;color:#ef4444;font-weight:700;display:none}
-  .qpend{padding:3px 8px;background:rgba(59,130,246,.1);border:1px solid var(--border);border-radius:4px;font-size:10px;color:#94a3b8;display:none;align-items:center;gap:5px}
+  .lj{color:#94a3b8;font-size:8.5px;padding-left:8px;word-break:break-all;width:100%}
+  #dpkt{position:fixed;padding:2px 6px;border-radius:3px;font-size:8px;font-weight:700;pointer-events:none;z-index:9999;display:none}
+  .bpo{position:absolute;top:0;left:0;right:0;background:rgba(236,72,153,.12);border:1px solid #ec4899;border-radius:4px;padding:3px 6px;font-size:8.5px;color:#ec4899;font-weight:700;text-align:center;z-index:10;display:none}
+  .tt{position:fixed;background:rgba(245,158,11,.9);color:#000;font-size:9px;font-weight:700;padding:3px 8px;border-radius:4px;pointer-events:none;z-index:9998;display:none;transform:translate(-50%,-50%)}
+  ::-webkit-scrollbar{width:4px;height:4px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#2a3045;border-radius:2px}
+  .nbdg{padding:1px 6px;border-radius:10px;font-size:9px;font-weight:700}
+  .non{background:rgba(34,197,94,.2);color:#22c55e;border:1px solid #22c55e}
+  .noff{background:rgba(239,68,68,.2);color:#ef4444;border:1px solid #ef4444}
+  .hl{border-color:#ec4899!important;box-shadow:0 0 0 1px #ec4899;transition:all .3s}
+  .ik{font-size:7.5px;color:#64748b;font-family:monospace}
+  .ci{align-items:center;gap:4px;padding:3px 6px;background:rgba(239,68,68,.1);border:1px solid #ef4444;border-radius:3px;font-size:9px;color:#ef4444;font-weight:700;display:none}
+  .qpend{padding:2px 6px;background:rgba(59,130,246,.1);border:1px solid var(--border);border-radius:3px;font-size:8px;color:#94a3b8;display:none;align-items:center;gap:4px}
 </style>
 </head>
 <body>
 
 <!-- HEADER -->
 <div class="hdr">
-  <div style="display:flex;align-items:center;gap:10px;flex-shrink:0">
-    <span style="color:#06b6d4;font-weight:800;font-size:15px;letter-spacing:.05em">&#x2b21; ระบบจัดการคิว</span>
-    <span style="color:#475569;font-size:10px">Queue Architecture Demo</span>
-  </div>
-  <div class="pipeline" id="pipeline-bar">
-    <div class="pip-step" id="pip-1"><span class="pip-num">1</span><span class="pip-label">กดคิว</span></div>
-    <div class="pip-line" id="pip-line-1"></div>
-    <div class="pip-step" id="pip-2"><span class="pip-num">2</span><span class="pip-label">บันทึก SQLite</span></div>
-    <div class="pip-line" id="pip-line-2"></div>
-    <div class="pip-step" id="pip-3"><span class="pip-num">3</span><span class="pip-label">ส่ง Broker</span></div>
-    <div class="pip-line" id="pip-line-3"></div>
-    <div class="pip-step" id="pip-4"><span class="pip-num">4</span><span class="pip-label">ประมวลผล</span></div>
-    <div class="pip-line" id="pip-line-4"></div>
-    <div class="pip-step" id="pip-5"><span class="pip-num">5</span><span class="pip-label">บันทึก DB</span></div>
-    <div class="pip-line" id="pip-line-5"></div>
-    <div class="pip-step" id="pip-6"><span class="pip-num">6</span><span class="pip-label">เสร็จ &#x2713;</span></div>
-  </div>
-  <div style="display:flex;align-items:center;gap:10px;flex-shrink:0">
-    <span id="net-badge" class="nbdg non">&#x25cf; ONLINE</span>
+  <span style="color:#06b6d4;font-weight:800;font-size:12px;letter-spacing:.1em">QUEUE SYSTEM — ARCHITECTURE DEBUGGER</span>
+  <span style="color:#475569;font-size:10px">v3.0 • Decoupled Pipeline • Async State Machine</span>
+  <span class="ml-auto flex items-center gap-3">
+    <span id="net-badge" class="nbdg non">● ONLINE</span>
     <span class="dot" style="background:#22c55e" id="sm-dot"></span>
-    <span id="sm-status" style="color:#94a3b8;font-size:11px">พร้อมใช้งาน</span>
-  </div>
+    <span id="sm-status" style="color:#94a3b8;font-size:9px">Idle — Ready</span>
+    <span style="color:#475569">|</span>
+    <span style="color:#64748b;font-size:9px">Priority: Array[2] of Linked Lists</span>
+  </span>
 </div>
 
 <!-- MAIN GRID -->
 <div class="grid">
 
-  <!-- COL 1, ROW 1: Memory Queue -->
+  <!-- COL 1, ROW 1: Memory -->
   <div style="grid-column:1;grid-row:1" class="pnl">
     <div class="ph">
-      <span class="ph-icon" style="color:var(--vip)">&#x1f4cb;</span>
-      <span class="ph-title" style="color:var(--vip)">คิวในหน่วยความจำ</span>
-      <span class="ph-desc">Memory Queue</span>
+      <span style="color:var(--vip)">▣</span><span style="color:var(--vip)">Memory</span>
+      <span style="color:#475569">— Priority Queue</span>
+      <span class="ml-auto" style="color:#475569;font-size:8px">O(1)</span>
     </div>
     <div class="pb" id="mem-panel">
       <div class="pr">
-        <div class="pi" style="background:rgba(245,158,11,.1);border:1.5px solid rgba(245,158,11,.4)">
-          <div style="color:var(--vip);font-size:11px;font-weight:800">&#x1f3c6; VIP</div>
-          <div style="color:var(--vip);font-size:9px">ลำดับ 0</div>
-          <div class="pl">HEAD&#x2192;</div>
+        <div class="pi" style="background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.4)">
+          <div style="color:var(--vip);font-size:9px;font-weight:800">IDX 0</div>
+          <div style="color:var(--vip);font-size:8px">VIP</div>
+          <div class="pl">HEAD→</div>
         </div>
-        <div class="llc" id="vip-list"><span class="eq">ว่าง</span></div>
+        <div class="llc" id="vip-list"><span class="eq">empty</span></div>
       </div>
       <div class="pr">
-        <div class="pi" style="background:rgba(59,130,246,.1);border:1.5px solid rgba(59,130,246,.4)">
-          <div style="color:var(--norm);font-size:11px;font-weight:800">&#x1f4dd; ปกติ</div>
-          <div style="color:var(--norm);font-size:9px">ลำดับ 1</div>
-          <div class="pl">HEAD&#x2192;</div>
+        <div class="pi" style="background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.4)">
+          <div style="color:var(--norm);font-size:9px;font-weight:800">IDX 1</div>
+          <div style="color:var(--norm);font-size:8px">NORMAL</div>
+          <div class="pl">HEAD→</div>
         </div>
-        <div class="llc" id="norm-list"><span class="eq">ว่าง</span></div>
+        <div class="llc" id="norm-list"><span class="eq">empty</span></div>
       </div>
-      <div style="display:flex;gap:10px;padding:4px 0;flex-shrink:0;border-top:1px solid var(--border);margin-top:auto">
-        <span style="font-size:10px;color:#64748b">&#x25a0; <span style="color:var(--vip)">VIP</span></span>
-        <span style="font-size:10px;color:#64748b">&#x25a0; <span style="color:var(--norm)">ปกติ</span></span>
-        <span style="font-size:10px;color:#64748b">&#x25a0; <span style="color:var(--proc)">กำลังทำ</span></span>
-        <span class="ml-auto" style="font-size:9px;color:#475569">Dequeue: VIP ก่อนเสมอ</span>
+      <div style="display:flex;gap:8px;padding:2px 0;flex-shrink:0">
+        <span style="font-size:8px;color:#64748b">■ <span style="color:var(--vip)">VIP</span></span>
+        <span style="font-size:8px;color:#64748b">■ <span style="color:var(--norm)">Normal</span></span>
+        <span style="font-size:8px;color:#64748b">■ <span style="color:var(--proc)">Processing</span></span>
+        <span class="ml-auto" style="font-size:7px;color:#475569">Tail O(1)</span>
       </div>
     </div>
   </div>
 
   <!-- COL 2, ROW 1: Flutter Producer -->
   <div style="grid-column:2;grid-row:1;position:relative" class="pnl" id="flutter-panel">
-    <div id="bpo-flutter" class="bpo">&#x2299; BREAKPOINT &#x2014; หยุดชั่วคราว</div>
+    <div id="bpo-flutter" class="bpo">⊙ BREAKPOINT HIT</div>
     <div class="ph">
-      <span class="ph-icon" style="color:#60a5fa">&#x1f4f1;</span>
-      <span class="ph-title" style="color:#60a5fa">แอปหน้าเคาน์เตอร์</span>
-      <span class="ph-desc">Flutter (Producer)</span>
+      <span style="color:#60a5fa">◈</span><span style="color:#60a5fa">Producer</span>
+      <span style="color:#475569">— Flutter Desktop App</span>
     </div>
-    <div class="pb" style="gap:5px">
+    <div class="pb" style="gap:3px">
+      <!-- Main UI Thread -->
       <div class="ft" style="flex:0 0 auto">
-        <div class="th"><span style="color:#22c55e">&#x25cf;</span> หน้าจอหลัก (UI Thread) <span id="ui-action" style="color:var(--vip);margin-left:auto;font-size:10px"></span></div>
-        <div style="display:flex;gap:8px;align-items:center">
-          <div style="flex:1">
-            <div style="color:#94a3b8;font-size:10px">จำนวนคิวที่ออก</div>
-            <div style="display:flex;gap:10px;margin-top:3px">
-              <div style="font-size:12px;color:var(--vip)">&#x1f3c6; VIP: <span id="ui-vip" style="font-weight:700" class="mono">0</span></div>
-              <div style="font-size:12px;color:var(--norm)">&#x1f4dd; ปกติ: <span id="ui-norm" style="font-weight:700" class="mono">0</span></div>
+        <div class="th"><span style="color:#22c55e">●</span> Main UI Thread <span id="ui-action" style="color:var(--vip);margin-left:auto;font-size:8px"></span></div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <div style="flex:1"><div style="color:#94a3b8;font-size:8px">Queue Counter</div>
+            <div style="display:flex;gap:6px;margin-top:2px">
+              <div style="font-size:9px;color:var(--vip)">VIP: <span id="ui-vip" style="font-weight:700">0</span></div>
+              <div style="font-size:9px;color:var(--norm)">Normal: <span id="ui-norm" style="font-weight:700">0</span></div>
             </div>
           </div>
-          <div style="text-align:right">
-            <div style="font-size:10px;color:#94a3b8">คิวล่าสุด</div>
-            <div id="ui-last" style="font-size:14px;font-weight:700;color:#e2e8f0" class="mono">&#x2014;</div>
-          </div>
+          <div style="text-align:right"><div style="font-size:8px;color:#94a3b8">Last Issued</div><div id="ui-last" style="font-size:10px;font-weight:700;color:#e2e8f0">—</div></div>
         </div>
       </div>
+      <!-- SQLite Buffer -->
       <div class="ft" style="flex:1;overflow:hidden;display:flex;flex-direction:column">
-        <div class="th"><span style="color:var(--warn)">&#x1f4be;</span> ฐานข้อมูลในเครื่อง (SQLite)</div>
+        <div class="th"><span style="color:var(--warn)">▦</span> Local SQLite Buffer</div>
         <div style="flex:1;overflow-y:auto;scrollbar-width:none">
-          <table class="st"><thead><tr><th>เลขคิว</th><th>สถานะ</th><th style="max-width:70px">Idempotency Key</th></tr></thead>
-          <tbody id="sq-body"><tr><td colspan="3" style="color:#475569;font-style:italic;padding:6px">ยังไม่มีข้อมูล</td></tr></tbody></table>
+          <table class="st"><thead><tr><th>queue_no</th><th>status</th><th style="max-width:70px">idempotency_key</th></tr></thead>
+          <tbody id="sq-body"><tr><td colspan="3" style="color:#475569;font-style:italic;padding:4px">No records.</td></tr></tbody></table>
         </div>
       </div>
-      <div class="ft" style="flex:0 0 80px;overflow:hidden;display:flex;flex-direction:column">
-        <div class="th"><span id="iso-dot" style="color:#64748b">&#x25cf;</span> Background Sync <span id="iso-state" style="color:#64748b;margin-left:auto;font-size:10px">พักอยู่</span></div>
+      <!-- Background Isolate -->
+      <div class="ft" style="flex:0 0 76px;overflow:hidden;display:flex;flex-direction:column">
+        <div class="th"><span id="iso-dot" style="color:#64748b">●</span> Background Isolate <span id="iso-state" style="color:#64748b;margin-left:auto;font-size:8px">Idle</span></div>
         <div id="iso-log" class="il"></div>
       </div>
     </div>
   </div>
 
   <!-- COL 3, ROW 1: RabbitMQ + Go Worker -->
-  <div style="grid-column:3;grid-row:1;display:flex;flex-direction:column;gap:6px">
+  <div style="grid-column:3;grid-row:1;display:flex;flex-direction:column;gap:4px">
+    <!-- RabbitMQ -->
     <div class="pnl" style="flex:1;position:relative" id="broker-panel">
-      <div id="bpo-broker" class="bpo">&#x2299; BREAKPOINT &#x2014; หยุดชั่วคราว</div>
-      <div class="ph">
-        <span class="ph-icon" style="color:var(--broker)">&#x1f4e8;</span>
-        <span class="ph-title" style="color:var(--broker)">ตัวจัดการคิวกลาง</span>
-        <span class="ph-desc">RabbitMQ (Broker)</span>
-      </div>
+      <div id="bpo-broker" class="bpo">⊙ BREAKPOINT HIT</div>
+      <div class="ph"><span style="color:var(--broker)">⬡</span><span style="color:var(--broker)">Message Broker</span><span style="color:#475569">— RabbitMQ</span></div>
       <div class="pb">
         <div class="bs">
-          <div class="bst"><div class="n" id="br-ready" style="color:var(--broker)">0</div><div style="color:#64748b;font-size:9px">รอส่ง</div></div>
-          <div class="bst"><div class="n" id="br-unack" style="color:var(--vip)">0</div><div style="color:#64748b;font-size:9px">ยังไม่ยืนยัน</div></div>
-          <div class="bst"><div class="n" id="br-total" style="color:var(--ok)">0</div><div style="color:#64748b;font-size:9px">ทั้งหมด</div></div>
+          <div class="bst"><div class="n" id="br-ready" style="color:var(--broker)">0</div><div style="color:#64748b;font-size:7px">READY</div></div>
+          <div class="bst"><div class="n" id="br-unack" style="color:var(--vip)">0</div><div style="color:#64748b;font-size:7px">UNACKED</div></div>
+          <div class="bst"><div class="n" id="br-total" style="color:var(--ok)">0</div><div style="color:#64748b;font-size:7px">TOTAL</div></div>
         </div>
-        <div class="bq" id="br-list"><div style="color:#475569;font-size:11px;font-style:italic;padding:6px">คิวว่างเปล่า</div></div>
+        <div class="bq" id="br-list"><div style="color:#475569;font-size:9px;font-style:italic;padding:4px">Queue empty.</div></div>
       </div>
     </div>
+    <!-- Go Worker -->
     <div class="pnl" style="flex:1;position:relative" id="go-panel">
-      <div id="bpo-go" class="bpo">&#x2299; BREAKPOINT &#x2014; หยุดชั่วคราว</div>
-      <div class="ph">
-        <span class="ph-icon" style="color:var(--go)">&#x26a1;</span>
-        <span class="ph-title" style="color:var(--go)">ตัวประมวลผล</span>
-        <span class="ph-desc">Go Worker (Consumer)</span>
-      </div>
+      <div id="bpo-go" class="bpo">⊙ BREAKPOINT HIT</div>
+      <div class="ph"><span style="color:var(--go)">⚡</span><span style="color:var(--go)">Consumer</span><span style="color:#475569">— Go Backend</span></div>
       <div class="pb">
-        <div class="gi"><span style="font-size:10px;color:#64748b">goroutine[1]</span><div class="gb"><div id="g-fill" class="gf" style="width:0%"></div></div><span id="g-pct" style="font-size:10px;color:#64748b" class="mono">0%</span></div>
+        <div class="gi"><span style="font-size:8px;color:#64748b">goroutine[1]</span><div class="gb"><div id="g-fill" class="gf" style="width:0%"></div></div><span id="g-pct" style="font-size:8px;color:#64748b">0%</span></div>
         <div class="tb" id="tx-block">
-          <div style="font-size:10px;color:#475569;margin-bottom:4px;font-style:italic">// Manual ACK &#x2014; ยืนยันเองเท่านั้น</div>
-          <div class="ts" id="tx-begin"><span class="ti">&#x25c9;</span> เปิด Transaction</div>
-          <div class="ts" id="tx-idem"><span class="ti">&#x1f511;</span> ตรวจ Idempotency Key (ป้องกันซ้ำ)</div>
-          <div class="ts" id="tx-logic"><span class="ti">&#x2699;</span> ประมวลผล Business Logic</div>
-          <div class="ts" id="tx-commit"><span class="ti">&#x2713;</span> COMMIT &#x2192; ส่ง ACK ยืนยัน</div>
-          <div class="ts" id="tx-rollback" style="display:none"><span class="ti">&#x2717;</span> ROLLBACK &#x2192; ไม่ส่ง ACK &#x2192; คืนคิว</div>
+          <div style="font-size:8px;color:#475569;margin-bottom:3px;font-style:italic">// Manual ACK Mode</div>
+          <div class="ts" id="tx-begin"><span class="ti">◉</span> BEGIN TRANSACTION</div>
+          <div class="ts" id="tx-idem"><span class="ti">🔑</span> CHECK idempotency_key</div>
+          <div class="ts" id="tx-logic"><span class="ti">⚙</span> EXECUTE BUSINESS LOGIC</div>
+          <div class="ts" id="tx-commit"><span class="ti">✓</span> COMMIT → send ACK</div>
+          <div class="ts" id="tx-rollback" style="display:none"><span class="ti">✗</span> ROLLBACK → NO ACK → REQUEUE</div>
         </div>
-        <div id="w-msg" style="margin-top:4px;font-size:10px;color:#64748b;min-height:16px"></div>
+        <div id="w-msg" style="margin-top:4px;font-size:8.5px;color:#64748b;min-height:16px"></div>
       </div>
     </div>
   </div>
 
-  <!-- COL 4: Control Panel -->
+  <!-- COL 4: Control Panel (spans both rows) -->
   <div class="cp">
-    <div class="ph" style="flex-shrink:0">
-      <span class="ph-icon" style="color:var(--proc)">&#x1f3ae;</span>
-      <span class="ph-title" style="color:var(--proc)">แผงควบคุม</span>
-    </div>
-    <div style="padding:8px;flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:8px">
+    <div class="ph" style="flex-shrink:0"><span style="color:var(--proc)">⌘</span><span style="color:var(--proc)">Debugger Controls</span></div>
+    <div style="padding:6px;flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:6px">
       <div class="esi" id="es-bar">
-        <div id="es-dot" style="width:8px;height:8px;border-radius:50%;background:#22c55e;flex-shrink:0"></div>
-        <span id="es-txt" style="font-size:11px;color:#94a3b8">พร้อมใช้งาน</span>
+        <div id="es-dot" style="width:7px;height:7px;border-radius:50%;background:#22c55e;flex-shrink:0"></div>
+        <span id="es-txt" style="font-size:9px;color:#94a3b8">Idle</span>
       </div>
+      <!-- Pending queue indicator — Array[2] of Linked Lists -->
       <div id="q-pending" class="qpend">
-        <span>&#x23f3;</span><span id="q-pending-txt">0 คิว</span>
-        <span id="q-pending-detail" style="font-size:9px;color:#64748b;margin-left:4px"></span>
+        <span>⏳</span><span id="q-pending-txt">0 queued</span>
+        <span id="q-pending-detail" style="font-size:7.5px;color:#64748b;margin-left:4px"></span>
       </div>
+      <!-- Queue Input -->
       <div>
-        <div class="sec-label">&#x2014; เพิ่มคิวใหม่ &#x2014;</div>
-        <div style="display:flex;flex-direction:column;gap:4px">
-          <button class="btn btn-v" id="btn-vip" onclick="addQueue('VIP')">&#x1f3c6; + เพิ่มคิว VIP</button>
-          <button class="btn btn-n" id="btn-norm" onclick="addQueue('NORMAL')">&#x1f4dd; + เพิ่มคิวปกติ</button>
+        <div style="font-size:8px;color:#64748b;margin-bottom:3px;text-transform:uppercase;letter-spacing:.05em">— Queue Input —</div>
+        <div style="display:flex;flex-direction:column;gap:3px">
+          <button class="btn btn-v" id="btn-vip" onclick="addQueue('VIP')">+ Add VIP Queue</button>
+          <button class="btn btn-n" id="btn-norm" onclick="addQueue('NORMAL')">+ Add Normal Queue</button>
         </div>
       </div>
       <hr class="sd"/>
+      <!-- Breakpoints -->
       <div>
-        <div class="sec-label">&#x2014; จุดหยุด (Breakpoints) &#x2014;</div>
-        <div style="display:flex;flex-direction:column;gap:2px">
-          <label class="bpr"><input type="checkbox" id="bp1"/><span class="bpl"><strong>1</strong> ก่อนบันทึก SQLite</span></label>
-          <label class="bpr"><input type="checkbox" id="bp2"/><span class="bpl"><strong>2</strong> ส่งข้อมูลไป Broker</span></label>
-          <label class="bpr"><input type="checkbox" id="bp3"/><span class="bpl"><strong>3</strong> ข้อมูลเข้าคิว Broker แล้ว</span></label>
-          <label class="bpr"><input type="checkbox" id="bp4"/><span class="bpl"><strong>4</strong> Worker ก่อน COMMIT</span></label>
-          <label class="bpr"><input type="checkbox" id="bp5"/><span class="bpl"><strong>5</strong> ACK กลับมาที่แอป</span></label>
-          <label class="bpr"><input type="checkbox" id="bp6"/><span class="bpl"><strong>6</strong> ก่อนอัปเดตเป็น Synced</span></label>
+        <div style="font-size:8px;color:#64748b;margin-bottom:3px;text-transform:uppercase;letter-spacing:.05em">— Breakpoints —</div>
+        <div style="display:flex;flex-direction:column;gap:1px">
+          <label class="bpr"><input type="checkbox" id="bp1"/><span class="bpl"><strong>BP1</strong> Flutter — Before SQLite save</span></label>
+          <label class="bpr"><input type="checkbox" id="bp2"/><span class="bpl"><strong>BP2</strong> Network Transit → RabbitMQ</span></label>
+          <label class="bpr"><input type="checkbox" id="bp3"/><span class="bpl"><strong>BP3</strong> Broker — Message Queued</span></label>
+          <label class="bpr"><input type="checkbox" id="bp4"/><span class="bpl"><strong>BP4</strong> Go Worker — Before COMMIT</span></label>
+          <label class="bpr"><input type="checkbox" id="bp5"/><span class="bpl"><strong>BP5</strong> Network — ACK → Flutter</span></label>
+          <label class="bpr"><input type="checkbox" id="bp6"/><span class="bpl"><strong>BP6</strong> Isolate — Before SQLite Synced</span></label>
         </div>
       </div>
       <hr class="sd"/>
+      <!-- Execution -->
       <div>
-        <div class="sec-label">&#x2014; ควบคุมการทำงาน &#x2014;</div>
-        <div style="display:flex;flex-direction:column;gap:4px">
-          <button class="btn btn-r" id="btn-resume" onclick="resumeExec()" disabled>&#x25b6; เล่นต่อ (Resume)</button>
-          <button class="btn btn-s" id="btn-step" onclick="stepOver()" disabled>&#x21e5; ทีละขั้น (Step Over)</button>
+        <div style="font-size:8px;color:#64748b;margin-bottom:3px;text-transform:uppercase;letter-spacing:.05em">— Execution —</div>
+        <div style="display:flex;flex-direction:column;gap:3px">
+          <button class="btn btn-r" id="btn-resume" onclick="resumeExec()" disabled>▶ Resume Play</button>
+          <button class="btn btn-s" id="btn-step" onclick="stepOver()" disabled>⇥ Step Over</button>
         </div>
       </div>
       <hr class="sd"/>
+      <!-- Network -->
       <div>
-        <div class="sec-label">&#x2014; เครือข่าย &#x2014;</div>
-        <button class="btn btn-w" id="btn-net" onclick="toggleNet()">&#x26a1; สลับเครือข่าย [ONLINE]</button>
+        <div style="font-size:8px;color:#64748b;margin-bottom:3px;text-transform:uppercase;letter-spacing:.05em">— Network —</div>
+        <button class="btn btn-w" id="btn-net" onclick="toggleNet()">⚡ Toggle Network [ONLINE]</button>
       </div>
       <hr class="sd"/>
+      <!-- Chaos -->
       <div>
-        <div class="sec-label" style="color:var(--err)">&#x2014; จำลองวิกฤต (Chaos) &#x2014;</div>
-        <div style="display:flex;flex-direction:column;gap:4px">
-          <button class="btn btn-d" id="btn-crash" onclick="chaosDbCrash()">&#x1f4a5; จำลอง DB ล่ม</button>
-          <button class="btn btn-g" id="btn-ghost" onclick="chaosGhost()">&#x1f47b; จำลองคิวผี (Ghost Queue)</button>
+        <div style="font-size:8px;color:var(--err);margin-bottom:3px;text-transform:uppercase;letter-spacing:.05em">— Chaos Engineering —</div>
+        <div style="display:flex;flex-direction:column;gap:3px">
+          <button class="btn btn-d" id="btn-crash" onclick="chaosDbCrash()">💥 Simulate DB Crash</button>
+          <button class="btn btn-g" id="btn-ghost" onclick="chaosGhost()">👻 Simulate Ghost Queue</button>
         </div>
-        <div id="chaos-ind" class="ci" style="margin-top:5px"><span>&#x26a0;</span><span id="chaos-msg"></span></div>
+        <div id="chaos-ind" class="ci" style="margin-top:4px"><span>⚠</span><span id="chaos-msg"></span></div>
       </div>
     </div>
   </div>
 
   <!-- COL 1, ROW 2: Main DB -->
   <div class="pnl" style="grid-column:1;grid-row:2">
-    <div class="ph">
-      <span class="ph-icon" style="color:var(--done)">&#x1f5c4;&#xfe0f;</span>
-      <span class="ph-title" style="color:var(--done)">ฐานข้อมูลหลัก</span>
-      <span class="ph-desc">Main Database</span>
-    </div>
+    <div class="ph"><span style="color:var(--done)">⊞</span><span style="color:var(--done)">Main DB</span><span style="color:#475569">— Relational</span></div>
     <div class="pb" style="padding:0;overflow:auto">
-      <table class="dbt"><thead><tr><th>ID</th><th>เลขคิว</th><th>ลำดับ</th><th>สถานะ</th><th>เวลา</th></tr></thead>
-      <tbody id="db-body"><tr><td colspan="5" style="color:#475569;font-style:italic;padding:6px">ยังไม่มีข้อมูล</td></tr></tbody></table>
+      <table class="dbt"><thead><tr><th>queue_id</th><th>queue_no</th><th>pri</th><th>status</th><th>created_at</th></tr></thead>
+      <tbody id="db-body"><tr><td colspan="5" style="color:#475569;font-style:italic;padding:4px">No records.</td></tr></tbody></table>
     </div>
   </div>
 
-  <!-- COL 2-3, ROW 2: Console -->
+  <!-- COL 2-3, ROW 2: Console (FIXED grid-column) -->
   <div class="pnl conpnl">
     <div class="ph" style="justify-content:space-between">
-      <div style="display:flex;align-items:center;gap:8px">
-        <span class="ph-icon" style="color:#7c3aed">&#x1f4cb;</span>
-        <span class="ph-title" style="color:#7c3aed">บันทึกเหตุการณ์</span>
-        <span class="ph-desc">Event Log</span>
-      </div>
-      <button onclick="clearCon()" style="background:none;border:1px solid var(--border);border-radius:4px;color:#64748b;cursor:pointer;font-size:10px;font-family:inherit;padding:2px 8px">&#x2715; ล้าง</button>
+      <div style="display:flex;align-items:center;gap:6px"><span style="color:#7c3aed">▸</span><span style="color:#7c3aed">System State Console</span><span style="color:#475569">— Real-time</span></div>
+      <button onclick="clearCon()" style="background:none;border:none;color:#475569;cursor:pointer;font-size:9px;font-family:inherit">✕ clear</button>
     </div>
     <div id="clog"></div>
   </div>
 
 </div>
 
-<!-- Animated Elements -->
+<!-- Animated Packet & Tooltip -->
 <div id="dpkt">PAYLOAD</div>
-<div id="ptt" class="tt">&#x1f5a8;&#xfe0f; พิมพ์สลิปแล้ว!</div>
+<div id="ptt" class="tt">🖨️ Slip Printed!</div>
 
 <script>
 // ═══════════════════════════════════════════════════════════
@@ -705,7 +638,6 @@ async function processQueue(queueNum, priority, idempotencyKey, isResync) {
   S.running = true;
   const prLabel = priority === 0 ? 'VIP' : 'Normal';
 
-  setPipeline(1);
   clog('info', 'START', `Pipeline started for ${queueNum} [${prLabel}]`,
     { queue_number: queueNum, priority_level: priority, idempotency_key: idempotencyKey });
 
@@ -715,7 +647,6 @@ async function processQueue(queueNum, priority, idempotencyKey, isResync) {
 
   // ─── BP1: Before SQLite save ──────────────
   if (!isResync) {
-    setPipeline(2);
     clog('info', 'BP1', `[Flutter UI] About to save ${queueNum} to Local SQLite.`);
     clog('rationale', 'BP1', `Engineering Rationale: Saving locally first ensures the queue is never lost. Heart of Offline-First Architecture.`);
     await pause('BP1: Flutter — Before SQLite save', 'bp1');
@@ -756,7 +687,6 @@ async function processQueue(queueNum, priority, idempotencyKey, isResync) {
   }
 
   // ─── BP2: Network Transit ─────────────────
-  setPipeline(3);
   clog('info', 'BP2', `[Network Transit] Payload about to travel Flutter → RabbitMQ.`);
   clog('rationale', 'BP2', `Background Isolate fires on separate thread — Main UI never blocked.`);
   await pause('BP2: Network Transit → RabbitMQ', 'bp2');
@@ -783,7 +713,6 @@ async function processQueue(queueNum, priority, idempotencyKey, isResync) {
   renderBR();
   await animPkt(brE, document.getElementById('go-panel'), `CONSUME: ${queueNum}`, '#06b6d4');
 
-  setPipeline(4);
   clog('info', 'GO', `[Go Worker] goroutine spawned. Manual ACK mode.`);
   clog('rationale', 'GO', `Message stays "Unacked" until worker explicitly confirms.`);
 
@@ -816,8 +745,7 @@ async function processQueue(queueNum, priority, idempotencyKey, isResync) {
     renderMem();
     S.running = false;
     document.getElementById('ui-action').textContent = '';
-    setIso(false, 'Idle'); setES('idle', 'พร้อมใช้งาน');
-    resetPipeline();
+    setIso(false, 'Idle'); setES('idle', 'Idle — Ready');
     drainPipeline();
     return;
   }
@@ -862,8 +790,7 @@ async function processQueue(queueNum, priority, idempotencyKey, isResync) {
     S.running = false;
     document.getElementById('ui-action').textContent = '';
     setIso(false, 'Idle');
-    setES('idle', 'รอคิว — ข้อมูลกลับเข้าคิวแล้ว');
-    resetPipeline();
+    setES('idle', 'Idle — (message re-queued)');
 
     // [FIX #7] Auto re-consume after delay to simulate worker recovery
     clog('info', 'RECOVERY', `Scheduling automatic re-consumption in 2s (worker recovery)…`);
@@ -883,7 +810,6 @@ async function processQueue(queueNum, priority, idempotencyKey, isResync) {
   }
 
   setTX('tx-logic', 'done');
-  setPipeline(5);
   setTX('tx-commit', 'active');
   clog('info', 'TX', `Committing to Main DB…`);
   await sleep(400);
@@ -937,8 +863,7 @@ async function processQueue(queueNum, priority, idempotencyKey, isResync) {
 
     S.running = false;
     document.getElementById('ui-action').textContent = '';
-    setIso(false, 'Idle'); setES('idle', 'พร้อมใช้งาน');
-    resetPipeline();
+    setIso(false, 'Idle'); setES('idle', 'Idle — Ready');
     drainPipeline();
     return;
   }
@@ -964,13 +889,11 @@ async function processQueue(queueNum, priority, idempotencyKey, isResync) {
   else S.mem.normal = S.mem.normal.filter(n => n.idempotencyKey !== idempotencyKey);
   renderMem();
 
-  setPipeline(6);
   clog('ok', 'DONE', `✅ Pipeline complete for ${queueNum}. Dequeued from priority[${priority}].`);
   clog('rationale', 'DONE', `Architecture validated: LocalDB → Broker → Worker → Main DB → ACK. Data integrity preserved.`);
 
   document.getElementById('ui-action').textContent = '';
-  setIso(false, 'Idle'); setES('idle', 'พร้อมใช้งาน');
-  setTimeout(resetPipeline, 1500);
+  setIso(false, 'Idle'); setES('idle', 'Idle — Ready');
   S.running = false;
   drainPipeline();
 }
@@ -1032,12 +955,10 @@ async function reprocessFromBroker(queueNum, priority, idempotencyKey) {
   else S.mem.normal = S.mem.normal.filter(n => n.idempotencyKey !== idempotencyKey);
   renderMem();
 
-  setPipeline(6);
   clog('ok', 'RECOVERY', `✅ Re-queued message fully processed. System recovered.`);
   resetTX();
   document.getElementById('ui-action').textContent = '';
-  setIso(false, 'Idle'); setES('idle', 'พร้อมใช้งาน');
-  setTimeout(resetPipeline, 1500);
+  setIso(false, 'Idle'); setES('idle', 'Idle — Ready');
   S.running = false;
   drainPipeline();
 }
@@ -1121,15 +1042,15 @@ function toggleNet() {
   const badge = document.getElementById('net-badge'), btn = document.getElementById('btn-net');
   if (S.net) {
     badge.className = 'nbdg non'; badge.textContent = '● ONLINE';
-    btn.className = 'btn btn-w'; btn.textContent = '⚡ สลับเครือข่าย [ONLINE]';
-    clog('ok', 'NET', `เครือข่ายกลับมาแล้ว — Background Sync จะเริ่มทำงาน`);
+    btn.className = 'btn btn-w'; btn.textContent = '⚡ Toggle Network [ONLINE]';
+    clog('ok', 'NET', `ONLINE. Background Sync will resume.`);
     setTimeout(triggerBgSync, 500);
   } else {
     badge.className = 'nbdg noff'; badge.textContent = '● OFFLINE';
-    btn.className = 'btn btn-off'; btn.textContent = '⚡ สลับเครือข่าย [OFFLINE]';
-    clog('warn', 'NET', `เครือข่ายขาด — เข้าสู่โหมด Offline-First (ข้อมูลเก็บไว้ใน SQLite)`);
-    setIso(false, 'เครือข่ายขาด');
-    isolateLog('warn', 'เครือข่ายหลุด');
+    btn.className = 'btn btn-off'; btn.textContent = '⚡ Toggle Network [OFFLINE]';
+    clog('warn', 'NET', `OFFLINE. Offline-First mode. Queues buffered in SQLite.`);
+    setIso(false, 'Network offline');
+    isolateLog('warn', 'Network disconnected.');
   }
 }
 
@@ -1156,36 +1077,12 @@ function chaosGhost() {
 }
 
 // ═══════════════════════════════════════════════════════════
-//  PIPELINE STAGE INDICATOR
-// ═══════════════════════════════════════════════════════════
-function setPipeline(stage) {
-  for (let i = 1; i <= 6; i++) {
-    const step = document.getElementById('pip-' + i);
-    const line = document.getElementById('pip-line-' + i);
-    if (!step) continue;
-    step.classList.remove('active', 'completed');
-    if (i < stage) step.classList.add('completed');
-    else if (i === stage) step.classList.add('active');
-    if (line) { line.classList.toggle('done', i < stage); }
-  }
-}
-function resetPipeline() {
-  for (let i = 1; i <= 6; i++) {
-    const step = document.getElementById('pip-' + i);
-    const line = document.getElementById('pip-line-' + i);
-    if (step) step.classList.remove('active', 'completed');
-    if (line) line.classList.remove('done');
-  }
-}
-
-// ═══════════════════════════════════════════════════════════
 //  INIT
 // ═══════════════════════════════════════════════════════════
-clog('info', 'เริ่มต้น', `ระบบจัดการคิว v3 พร้อมใช้งานแล้ว`);
-clog('rationale', 'เริ่มต้น', `โครงสร้าง: Array of Linked Lists → SQLite → RabbitMQ → Go Worker → Main DB → ACK`);
-clog('info', 'เริ่มต้น', `กด [+ เพิ่มคิว VIP] หรือ [+ เพิ่มคิวปกติ] เพื่อเริ่มต้น  ·  เปิด Breakpoints เพื่อหยุดดูทีละขั้นตอน`);
-setES('idle', 'พร้อมใช้งาน');
-resetPipeline();
+clog('info', 'INIT', `Queue Architecture Debugger v3.0 initialized.`);
+clog('rationale', 'INIT', `Array[2] of Linked Lists | SQLite Offline Buffer | RabbitMQ Persistent Broker | Go Worker Manual ACK | Idempotency Key.`);
+clog('info', 'INIT', `Click [Add VIP/Normal Queue] to start. Enable Breakpoints to pause at transitions. Use Step Over to advance one step at a time.`);
+setES('idle', 'Idle — Ready');
 </script>
 </body>
 </html>
