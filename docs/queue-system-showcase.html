@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบบริหารจัดการคิว — สถานีตำรวจ | Interactive Showcase</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { thai: ['Prompt', 'Noto Sans Thai', 'sans-serif'] }
+                }
+            }
+        }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * { font-family: 'Prompt', 'Noto Sans Thai', sans-serif; }
+        @keyframes flashCall {
+            0%, 100% { opacity: 1; box-shadow: 0 0 30px rgba(59,130,246,0.4); }
+            50% { opacity: 0.6; box-shadow: 0 0 60px rgba(59,130,246,0.8), 0 0 90px rgba(59,130,246,0.3); }
+        }
+        @keyframes slideUpFade {
+            from { transform: translateY(40px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        @keyframes printSlip {
+            0% { clip-path: inset(0 0 100% 0); }
+            100% { clip-path: inset(0 0 0 0); }
+        }
+        @keyframes popIn {
+            0% { transform: scale(0.8); opacity: 0; }
+            70% { transform: scale(1.05); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+        .flash-call { animation: flashCall 1s ease-in-out 5; }
+        .anim-slide-up { animation: slideUpFade 0.4s ease-out both; }
+        .anim-pop { animation: popIn 0.5s ease-out both; }
+        .anim-print { animation: printSlip 1.2s ease-out both; }
+        .stagger-1 { animation-delay: 0.05s; }
+        .stagger-2 { animation-delay: 0.1s; }
+        .stagger-3 { animation-delay: 0.15s; }
+        .stagger-4 { animation-delay: 0.2s; }
+        .glow-blue { box-shadow: 0 0 25px rgba(59,130,246,0.3); }
+        .glow-amber { box-shadow: 0 0 25px rgba(245,158,11,0.35); }
+        .shimmer-bg {
+            background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.05) 50%, transparent 100%);
+            background-size: 200% 100%;
+            animation: shimmer 3s infinite;
+        }
+        .receipt-dash { border-style: dashed; }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        button { -webkit-tap-highlight-color: transparent; }
+        @keyframes countdownShrink {
+            from { width: 100%; }
+            to { width: 0%; }
+        }
+        .countdown-bar { animation: countdownShrink 3s linear forwards; }
+        .drag-over-top { border-top: 2px solid #3b82f6 !important; }
+        .drag-over-bottom { border-bottom: 2px solid #3b82f6 !important; }
+        .dragging { opacity: 0.4; transform: scale(0.97); }
+        .drag-handle { cursor: grab; }
+        .drag-handle:active { cursor: grabbing; }
+    </style>
+</head>
+<body class="bg-slate-950 min-h-screen overflow-hidden select-none">
+
+    <!-- ═══════════════════════════ HEADER BAR ═══════════════════════════ -->
+    <header class="bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-6 py-2.5 relative z-50">
+        <div class="flex items-center justify-between max-w-[1920px] mx-auto">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-lg shadow-lg shadow-blue-500/20">🏛️</div>
+                <div>
+                    <h1 class="text-white font-bold text-base leading-tight tracking-tight">ระบบบริหารจัดการคิว สถานีตำรวจ</h1>
+                    <p class="text-slate-500 text-[11px]">Police Station Queue Management System — Interactive Showcase</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-5 text-sm">
+                <div id="header-stats" class="text-slate-400 text-xs hidden sm:block"></div>
+                <button onclick="resetDemo()" class="text-xs px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700 transition-all" title="รีเซ็ตข้อมูล Demo">↻ รีเซ็ต</button>
+                <div class="flex items-center gap-2 text-slate-500 text-xs">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    สถานีตำรวจนครบาลบางรัก
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- ═══════════════════════════ MAIN 3-ZONE LAYOUT ═══════════════════════════ -->
+    <main class="grid grid-cols-12 gap-3 p-3 h-[calc(100vh-52px)] max-w-[1920px] mx-auto">
+
+        <!-- ─────────── ZONE 1: KIOSK (Self-Service) ─────────── -->
+        <section class="col-span-3 flex flex-col min-w-0">
+            <div class="text-slate-500 text-[10px] uppercase tracking-widest mb-1.5 px-1 flex items-center gap-1.5 font-medium">
+                <span>📱</span> ตู้กดคิวประชาชน — Self-Service Kiosk
+            </div>
+            <div class="flex-1 bg-gradient-to-b from-slate-800 to-slate-800/80 rounded-[22px] p-2.5 shadow-2xl border border-slate-700/60 flex flex-col min-h-0">
+                <div id="kiosk-screen" class="flex-1 bg-white rounded-[16px] overflow-hidden relative min-h-0"></div>
+                <div class="flex justify-center pt-2.5 pb-0.5 shrink-0">
+                    <div class="w-7 h-7 rounded-full border-2 border-slate-600/60 flex items-center justify-center">
+                        <div class="w-2.5 h-2.5 rounded-full bg-slate-600/50"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ─────────── ZONE 2: DISPLAY BOARD ─────────── -->
+        <section class="col-span-5 flex flex-col min-w-0">
+            <div class="text-slate-500 text-[10px] uppercase tracking-widest mb-1.5 px-1 flex items-center gap-1.5 font-medium">
+                <span>📺</span> หน้าจอแสดงคิว — Display Board
+            </div>
+            <div class="flex-1 bg-gradient-to-b from-slate-900 via-[#0c1425] to-slate-900 rounded-2xl border-2 border-slate-700/50 shadow-2xl overflow-hidden flex flex-col relative min-h-0">
+                <div class="absolute inset-0 shimmer-bg pointer-events-none"></div>
+                <div id="display-board" class="flex-1 flex flex-col relative z-10 min-h-0"></div>
+            </div>
+        </section>
+
+        <!-- ─────────── ZONE 3: OFFICER AREA ─────────── -->
+        <section class="col-span-4 flex flex-col min-w-0">
+            <div class="text-slate-500 text-[10px] uppercase tracking-widest mb-1.5 px-1 flex items-center gap-1.5 font-medium">
+                <span>👮</span> เคาน์เตอร์เจ้าหน้าที่ — Officer Control Panel
+            </div>
+            <div id="officer-area" class="flex-1 flex flex-col gap-2 min-h-0 overflow-y-auto pr-0.5"></div>
+        </section>
+    </main>
+
+<script>
+// ╔════════════════════════════════════════════════════════════════════╗
+// ║  📦 DATA STRUCTURES — Linked List Queue (O(1) Enqueue/Dequeue)  ║
+// ╚════════════════════════════════════════════════════════════════════╝
+
+class QueueNode {
+    constructor(data) {
+        this.data = data;
+        this.next = null;
+    }
+}
+
+class LinkedListQueue {
+    constructor() {
+        this.head = null;
+        this.tail = null;
+        this.size = 0;
+    }
+    enqueue(data) {
+        const node = new QueueNode(data);
+        if (!this.tail) {
+            this.head = this.tail = node;
+        } else {
+            this.tail.next = node;
+            this.tail = node;
+        }
+        this.size++;
+        return data;
+    }
+    dequeue() {
+        if (!this.head) return null;
+        const data = this.head.data;
+        this.head = this.head.next;
+        if (!this.head) this.tail = null;
+        this.size--;
+        return data;
+    }
+    peek() {
+        return this.head ? this.head.data : null;
+    }
+    isEmpty() {
+        return this.size === 0;
+    }
+    toArray() {
+        const arr = [];
+        let cur = this.head;
+        while (cur) { arr.push(cur.data); cur = cur.next; }
+        return arr;
+    }
+}
+
+// ╔════════════════════════════════════════════════════════════════════╗
+// ║  📋 CONSTANTS                                                    ║
+// ╚════════════════════════════════════════════════════════════════════╝
+
+const SERVICE_TYPES = [
+    { prefix: 'R', name: 'แจ้งความร้องทุกข์',   short: 'แจ้งความ',  desc: 'ร้องทุกข์ / แจ้งเอกสารหาย / แจ้งเหตุทั่วไป', icon: '📋',
+      bg: 'bg-blue-600',    hover: 'hover:bg-blue-700',    text: 'text-blue-400',    border: 'border-blue-500/30',    light: 'bg-blue-500/10',    ring: 'ring-blue-500',    dot: 'bg-blue-500' },
+    { prefix: 'S', name: 'พบพนักงานสอบสวน',     short: 'สอบสวน',    desc: 'สอบปากคำ / ให้การเพิ่มเติม / ติดตามคดี', icon: '🔍',
+      bg: 'bg-violet-600',  hover: 'hover:bg-violet-700',  text: 'text-violet-400',  border: 'border-violet-500/30',  light: 'bg-violet-500/10',  ring: 'ring-violet-500',  dot: 'bg-violet-500' },
+    { prefix: 'E', name: 'เหตุด่วน / อุบัติเหตุ', short: 'เหตุด่วน',  desc: 'แจ้งเหตุฉุกเฉิน / อุบัติเหตุ', icon: '🚨',
+      bg: 'bg-rose-600',    hover: 'hover:bg-rose-700',    text: 'text-rose-400',    border: 'border-rose-500/30',    light: 'bg-rose-500/10',    ring: 'ring-rose-500',    dot: 'bg-rose-500' },
+    { prefix: 'L', name: 'ปรึกษากฎหมาย',        short: 'กฎหมาย',    desc: 'สอบถามข้อกฎหมาย / ขอคำปรึกษาเบื้องต้น', icon: '⚖️',
+      bg: 'bg-emerald-600', hover: 'hover:bg-emerald-700', text: 'text-emerald-400', border: 'border-emerald-500/30', light: 'bg-emerald-500/10', ring: 'ring-emerald-500', dot: 'bg-emerald-500' },
+];
+
+const SVC_MAP = {};
+SERVICE_TYPES.forEach(s => SVC_MAP[s.prefix] = s);
+
+// ╔════════════════════════════════════════════════════════════════════╗
+// ║  🌐 GLOBAL STATE — Single Source of Truth                        ║
+// ╚════════════════════════════════════════════════════════════════════╝
+
+const State = {
+    // 2D Queue Matrix: queues[serviceType][priority] = LinkedListQueue
+    // Priority 0 = VIP, Priority 1 = Normal
+    queues: {
+        R: { 0: new LinkedListQueue(), 1: new LinkedListQueue() },
+        S: { 0: new LinkedListQueue(), 1: new LinkedListQueue() },
+        E: { 0: new LinkedListQueue(), 1: new LinkedListQueue() },
+        L: { 0: new LinkedListQueue(), 1: new LinkedListQueue() },
+    },
+    // Running sequence numbers: seq[serviceType][priority]
+    seq: {
+        R: { 0: 0, 1: 0 },  S: { 0: 0, 1: 0 },
+        E: { 0: 0, 1: 0 },  L: { 0: 0, 1: 0 },
+    },
+    // Counter (service point) states
+    counters: [
+        { id: 1, serviceType: 'R', status: 'idle', current: null, calledAt: null, startedAt: null },
+        { id: 2, serviceType: 'S', status: 'idle', current: null, calledAt: null, startedAt: null },
+        { id: 3, serviceType: 'E', status: 'idle', current: null, calledAt: null, startedAt: null },
+        { id: 4, serviceType: 'L', status: 'idle', current: null, calledAt: null, startedAt: null },
+    ],
+    nextCounterId: 5,
+    // Display board
+    lastCalled: null,
+    lastCalledTime: 0,
+    flashActive: false,
+    // Stats
+    totalIssued: 0,
+    totalServed: 0,
+};
+
+const Kiosk = {
+    step: 0,        // 0=main, 1=slip(auto-return), 2=vip-select
+    selectedService: null,
+    selectedPriority: null,
+    lastIssued: null,
+    autoReturnTimer: null,
+};
+
+// ╔════════════════════════════════════════════════════════════════════╗
+// ║  🎯 BUSINESS LOGIC                                               ║
+// ╚════════════════════════════════════════════════════════════════════╝
+
+function formatQueueNumber(prefix, priority, num) {
+    const n = String(num).padStart(3, '0');
+    return priority === 0 ? `${prefix}-V${n}` : `${prefix}-${n}`;
+}
+
+function enqueue(serviceType, priority) {
+    State.seq[serviceType][priority]++;
+    const num = State.seq[serviceType][priority];
+    const queueNumber = formatQueueNumber(serviceType, priority, num);
+    const ticket = {
+        id: `${serviceType}-${priority}-${num}`,
+        queueNumber,
+        serviceType,
+        priority,
+        status: 'pending',
+        createdAt: Date.now(),
+    };
+    State.queues[serviceType][priority].enqueue(ticket);
+    State.totalIssued++;
+    return ticket;
+}
+
+function dequeueNext(serviceType) {
+    // Strict Priority: VIP (0) first, then Normal (1). FIFO within each.
+    if (!State.queues[serviceType][0].isEmpty()) {
+        return State.queues[serviceType][0].dequeue();
+    }
+    if (!State.queues[serviceType][1].isEmpty()) {
+        return State.queues[serviceType][1].dequeue();
+    }
+    return null;
+}
+
+function getWaitingCount(serviceType) {
+    return State.queues[serviceType][0].size + State.queues[serviceType][1].size;
+}
+
+function getWaitingAhead(serviceType, priority) {
+    if (priority === 0) {
+        return State.queues[serviceType][0].size - 1;
+    }
+    return State.queues[serviceType][0].size + State.queues[serviceType][1].size - 1;
+}
+
+function callNext(counterId) {
+    const counter = State.counters.find(c => c.id === counterId);
+    if (!counter || counter.status !== 'idle') return false;
+    const ticket = dequeueNext(counter.serviceType);
+    if (!ticket) return false;
+    ticket.status = 'called';
+    counter.status = 'called';
+    counter.current = ticket;
+    counter.calledAt = Date.now();
+    counter.startedAt = null;
+    // Display board flash
+    State.lastCalled = { queueNumber: ticket.queueNumber, counterId: counter.id, serviceType: ticket.serviceType, priority: ticket.priority };
+    State.lastCalledTime = Date.now();
+    State.flashActive = true;
+    setTimeout(() => { State.flashActive = false; renderDisplayBoard(); }, 6000);
+    playDingDong();
+    announceQueue(ticket.queueNumber, counter.id);
+    renderAll();
+    return true;
+}
+
+function startService(counterId) {
+    const counter = State.counters.find(c => c.id === counterId);
+    if (!counter || counter.status !== 'called') return;
+    counter.status = 'processing';
+    counter.startedAt = Date.now();
+    if (counter.current) counter.current.status = 'processing';
+    renderAll();
+}
+
+function completeService(counterId) {
+    const counter = State.counters.find(c => c.id === counterId);
+    if (!counter || counter.status !== 'processing') return;
+    if (counter.current) counter.current.status = 'completed';
+    counter.status = 'idle';
+    counter.current = null;
+    counter.calledAt = null;
+    counter.startedAt = null;
+    State.totalServed++;
+    renderAll();
+}
+
+// ─── Counter Management ────────────────────────────────────────────
+
+function addCounter(serviceType) {
+    const id = State.nextCounterId++;
+    State.counters.push({ id, serviceType, status: 'idle', current: null, calledAt: null, startedAt: null });
+    renderAll();
+}
+
+function canRemoveCounter(counterId) {
+    const counter = State.counters.find(c => c.id === counterId);
+    if (!counter || counter.status !== 'idle') return false;
+    return State.counters.filter(c => c.serviceType === counter.serviceType).length > 1;
+}
+
+function removeCounter(counterId) {
+    if (!canRemoveCounter(counterId)) return;
+    State.counters = State.counters.filter(c => c.id !== counterId);
+    renderAll();
+}
+
+// ╔════════════════════════════════════════════════════════════════════╗
+// ║  🔊 AUDIO — Notification & TTS                                   ║
+// ╚════════════════════════════════════════════════════════════════════╝
+
+let audioCtx = null;
+function getAudioCtx() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    return audioCtx;
+}
+
+function playDingDong() {
+    try {
+        const ctx = getAudioCtx();
+        const now = ctx.currentTime;
+        // Ding
+        const o1 = ctx.createOscillator(), g1 = ctx.createGain();
+        o1.connect(g1); g1.connect(ctx.destination);
+        o1.type = 'sine'; o1.frequency.value = 830;
+        g1.gain.setValueAtTime(0.25, now);
+        g1.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+        o1.start(now); o1.stop(now + 0.5);
+        // Dong
+        const o2 = ctx.createOscillator(), g2 = ctx.createGain();
+        o2.connect(g2); g2.connect(ctx.destination);
+        o2.type = 'sine'; o2.frequency.value = 622;
+        g2.gain.setValueAtTime(0.25, now + 0.35);
+        g2.gain.exponentialRampToValueAtTime(0.001, now + 0.9);
+        o2.start(now + 0.35); o2.stop(now + 0.9);
+    } catch(e) {}
+}
+
+function announceQueue(queueNumber, counterId) {
+    try {
+        if (!('speechSynthesis' in window)) return;
+        window.speechSynthesis.cancel();
+        const msg = new SpeechSynthesisUtterance(`หมายเลข ${queueNumber.split('').join(' ')} เชิญที่ช่องบริการ ${counterId}`);
+        msg.lang = 'th-TH';
+        msg.rate = 0.85;
+        msg.pitch = 1;
+        setTimeout(() => window.speechSynthesis.speak(msg), 1000);
+    } catch(e) {}
+}
+
+function playTicketSound() {
+    try {
+        const ctx = getAudioCtx();
+        const now = ctx.currentTime;
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.connect(g); g.connect(ctx.destination);
+        o.type = 'sine'; o.frequency.value = 1200;
+        g.gain.setValueAtTime(0.15, now);
+        g.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+        o.start(now); o.stop(now + 0.15);
+    } catch(e) {}
+}
+
+// ╔════════════════════════════════════════════════════════════════════╗
+// ║  🎨 UI RENDERING — Data-Driven Partial Re-renders                ║
+// ╚════════════════════════════════════════════════════════════════════╝
+
+function renderAll() {
+    renderKiosk();
+    renderDisplayBoard();
+    renderOfficerArea();
+    renderHeaderStats();
+}
+
+// ─── Kiosk ─────────────────────────────────────────────────────────
+
+function renderKiosk() {
+    const el = document.getElementById('kiosk-screen');
+    if (Kiosk.step === 0) {
+        el.innerHTML = `
+            <div class="h-full flex flex-col p-5 overflow-y-auto relative">
+                <div class="text-center mb-4 shrink-0 anim-slide-up">
+                    <div class="text-4xl mb-1">🏛️</div>
+                    <h2 class="text-xl font-bold text-slate-800 leading-tight">สวัสดีครับ / ค่ะ</h2>
+                    <p class="text-slate-500 text-sm mt-0.5">กรุณาเลือกประเภทบริการ</p>
+                </div>
+                <div class="flex-1 flex flex-col gap-2.5 justify-center min-h-0">
+                    ${SERVICE_TYPES.map((st, i) => `
+                        <button onclick="kioskSelectService('${st.prefix}')"
+                            class="w-full p-3.5 rounded-2xl ${st.bg} ${st.hover} active:scale-[0.97]
+                                   transition-all duration-200 text-white text-left flex items-center gap-3
+                                   shadow-lg anim-slide-up stagger-${i+1}">
+                            <span class="text-3xl shrink-0">${st.icon}</span>
+                            <div class="min-w-0">
+                                <div class="font-bold text-[15px] leading-tight">${st.name}</div>
+                                <div class="text-[11px] opacity-75 leading-tight mt-0.5 truncate">${st.desc}</div>
+                            </div>
+                        </button>
+                    `).join('')}
+                </div>
+                <button onclick="kioskShowVip()" class="absolute bottom-3 right-3 w-8 h-8 rounded-full bg-slate-100 hover:bg-amber-100 border border-slate-200 hover:border-amber-300 flex items-center justify-center text-xs text-slate-400 hover:text-amber-600 transition-all opacity-50 hover:opacity-100" title="ออกคิว VIP (สำหรับเจ้าหน้าที่)">⭐</button>
+            </div>`;
+    } else if (Kiosk.step === 1) {
+        const t = Kiosk.lastIssued;
+        const svc = SVC_MAP[t.serviceType];
+        const ahead = getWaitingAhead(t.serviceType, t.priority);
+        const isVip = t.priority === 0;
+        el.innerHTML = `
+            <div class="h-full flex flex-col items-center justify-center p-5 bg-gradient-to-b from-slate-50 to-white overflow-y-auto">
+                <div class="w-full max-w-[260px] anim-print">
+                    <div class="bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden">
+                        <div class="bg-slate-800 text-white text-center py-3 px-4">
+                            <div class="text-base font-bold">🏛️ สถานีตำรวจนครบาลบางรัก</div>
+                            <div class="text-[10px] opacity-60 mt-0.5">ระบบบริหารจัดการคิว</div>
+                        </div>
+                        <div class="border-b-2 border-dashed border-slate-200"></div>
+                        <div class="py-5 text-center">
+                            <div class="text-slate-400 text-xs mb-1">หมายเลขคิวของท่าน</div>
+                            <div class="text-4xl font-extrabold tracking-wide ${isVip ? 'text-amber-500' : 'text-slate-800'}">
+                                ${t.queueNumber}
+                            </div>
+                            ${isVip ? '<div class="inline-block mt-2 px-3 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-semibold">⭐ สิทธิพิเศษ (VIP)</div>' : ''}
+                        </div>
+                        <div class="border-b-2 border-dashed border-slate-200"></div>
+                        <div class="px-4 py-3 space-y-1.5 text-sm">
+                            <div class="flex justify-between">
+                                <span class="text-slate-400">ประเภทบริการ</span>
+                                <span class="font-semibold text-slate-700">${svc.name}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-slate-400">คิวข้างหน้า</span>
+                                <span class="font-bold ${ahead > 5 ? 'text-rose-500' : 'text-emerald-600'}">${Math.max(0, ahead)} คิว</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-slate-400">เวลา</span>
+                                <span class="text-slate-600">${new Date().toLocaleTimeString('th-TH', {hour:'2-digit', minute:'2-digit'})} น.</span>
+                            </div>
+                        </div>
+                        <div class="border-b-2 border-dashed border-slate-200"></div>
+                        <div class="text-center py-3 px-4">
+                            <p class="text-slate-500 text-[11px] leading-relaxed">กรุณาเก็บสลิปนี้ไว้<br>และรอฟังเรียกคิวที่หน้าจอ</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="w-full max-w-[260px] mt-4">
+                    <div class="h-1 bg-slate-200 rounded-full overflow-hidden">
+                        <div class="h-full bg-blue-500 rounded-full countdown-bar"></div>
+                    </div>
+                    <p class="text-slate-400 text-[10px] text-center mt-1.5">หน้าจอจะกลับสู่หน้าหลักอัตโนมัติ</p>
+                </div>
+            </div>`;
+    } else if (Kiosk.step === 2) {
+        el.innerHTML = `
+            <div class="h-full flex flex-col p-4 overflow-y-auto bg-gradient-to-b from-amber-50 to-white">
+                <button onclick="kioskBack()" class="shrink-0 self-start text-slate-400 hover:text-slate-600 text-sm flex items-center gap-1 mb-2 transition-colors">
+                    ← ย้อนกลับ
+                </button>
+                <div class="text-center mb-3 anim-pop">
+                    <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 border border-amber-200 text-amber-700 text-xs font-semibold mb-2">
+                        ⭐ โหมดเจ้าหน้าที่ — ออกคิว VIP
+                    </div>
+                    <p class="text-slate-500 text-xs">ผู้สูงอายุ / ผู้พิการ / สตรีมีครรภ์ / พระภิกษุ</p>
+                </div>
+                <div class="flex-1 flex flex-col gap-2 justify-center min-h-0">
+                    ${SERVICE_TYPES.map((st, i) => `
+                        <button onclick="kioskVipSelect('${st.prefix}')"
+                            class="w-full p-3 rounded-xl border-2 border-amber-300 bg-white hover:bg-amber-50 active:scale-[0.97]
+                                   transition-all duration-200 text-left flex items-center gap-3 shadow-sm anim-slide-up stagger-${i+1}">
+                            <span class="text-2xl shrink-0">${st.icon}</span>
+                            <div class="min-w-0 flex-1">
+                                <div class="font-bold text-sm text-slate-800 leading-tight">${st.name}</div>
+                            </div>
+                            <span class="text-amber-500 text-lg">⭐</span>
+                        </button>
+                    `).join('')}
+                </div>
+            </div>`;
+    }
+}
+
+function kioskSelectService(prefix) {
+    const ticket = enqueue(prefix, 1);
+    Kiosk.selectedService = prefix;
+    Kiosk.selectedPriority = 1;
+    Kiosk.lastIssued = ticket;
+    Kiosk.step = 1;
+    playTicketSound();
+    renderAll();
+    scheduleAutoReturn();
+}
+
+function kioskShowVip() {
+    Kiosk.step = 2;
+    renderKiosk();
+}
+
+function kioskVipSelect(prefix) {
+    const ticket = enqueue(prefix, 0);
+    Kiosk.selectedService = prefix;
+    Kiosk.selectedPriority = 0;
+    Kiosk.lastIssued = ticket;
+    Kiosk.step = 1;
+    playTicketSound();
+    renderAll();
+    scheduleAutoReturn();
+}
+
+function scheduleAutoReturn() {
+    if (Kiosk.autoReturnTimer) clearTimeout(Kiosk.autoReturnTimer);
+    Kiosk.autoReturnTimer = setTimeout(() => {
+        kioskReset();
+        renderAll();
+    }, 3000);
+}
+
+function kioskBack() {
+    if (Kiosk.autoReturnTimer) clearTimeout(Kiosk.autoReturnTimer);
+    Kiosk.step = 0;
+    Kiosk.selectedService = null;
+    renderKiosk();
+}
+
+function kioskReset() {
+    if (Kiosk.autoReturnTimer) clearTimeout(Kiosk.autoReturnTimer);
+    Kiosk.autoReturnTimer = null;
+    Kiosk.step = 0;
+    Kiosk.selectedService = null;
+    Kiosk.selectedPriority = null;
+    Kiosk.lastIssued = null;
+    renderKiosk();
+}
+
+// ─── Display Board ─────────────────────────────────────────────────
+
+function renderDisplayBoard() {
+    const el = document.getElementById('display-board');
+    const lc = State.lastCalled;
+    const isFlash = State.flashActive && lc;
+    const svc = lc ? SVC_MAP[lc.serviceType] : null;
+
+    // Counter cards
+    const counterCards = State.counters.map(c => {
+        const st = SVC_MAP[c.serviceType];
+        const isActive = c.status !== 'idle';
+        const qn = c.current ? c.current.queueNumber : '—';
+        const statusLabel = c.status === 'processing' ? 'กำลังให้บริการ' : c.status === 'called' ? 'กำลังเรียก' : 'ว่าง';
+        const statusColor = c.status === 'processing' ? 'text-emerald-400' : c.status === 'called' ? 'text-amber-400 animate-pulse' : 'text-slate-500';
+        const qnColor = isActive ? (c.current?.priority === 0 ? 'text-amber-400' : 'text-white') : 'text-slate-600';
+        return `
+            <div class="bg-slate-800/60 rounded-xl p-2.5 text-center border ${isActive ? st.border : 'border-slate-700/40'} transition-all duration-500">
+                <div class="text-slate-400 text-[11px] font-medium">ช่อง ${c.id}</div>
+                <div class="text-xs ${st.text} mb-1">${st.short}</div>
+                <div class="text-2xl font-extrabold ${qnColor} leading-none my-1 tracking-wide">${qn}</div>
+                <div class="text-[10px] ${statusColor} font-medium">${statusLabel}</div>
+            </div>`;
+    }).join('');
+
+    // Waiting counts
+    const waitBars = SERVICE_TYPES.map(st => {
+        const count = getWaitingCount(st.prefix);
+        const vipCount = State.queues[st.prefix][0].size;
+        return `
+            <div class="flex items-center gap-2 text-xs">
+                <span class="w-2 h-2 rounded-full ${st.dot} shrink-0"></span>
+                <span class="text-slate-400 w-16 truncate">${st.short}</span>
+                <span class="font-bold text-white w-6 text-right">${count}</span>
+                ${vipCount > 0 ? `<span class="text-amber-400 text-[10px]">(VIP ${vipCount})</span>` : '<span class="text-slate-600 text-[10px]">&nbsp;</span>'}
+            </div>`;
+    }).join('');
+
+    const totalWaiting = SERVICE_TYPES.reduce((s, st) => s + getWaitingCount(st.prefix), 0);
+
+    el.innerHTML = `
+        <!-- Board Header -->
+        <div class="px-4 py-2.5 border-b border-slate-700/50 flex items-center justify-between shrink-0">
+            <div class="flex items-center gap-2">
+                <span class="text-blue-400 text-lg">⚜️</span>
+                <div>
+                    <div class="text-white font-bold text-sm leading-tight">สถานีตำรวจนครบาลบางรัก</div>
+                    <div class="text-slate-500 text-[10px]">ระบบบริหารจัดการคิว</div>
+                </div>
+            </div>
+            <div class="text-right">
+                <div id="board-time" class="text-blue-400 font-bold text-lg tabular-nums leading-none"></div>
+                <div id="board-date" class="text-slate-500 text-[10px] mt-0.5"></div>
+            </div>
+        </div>
+
+        <!-- Called Queue Hero -->
+        <div class="flex-1 flex flex-col items-center justify-center px-4 py-3 min-h-0">
+            ${isFlash ? `
+                <div class="text-center anim-pop">
+                    <div class="text-slate-400 text-xs mb-2 tracking-wider uppercase">🔔 กำลังเรียกหมายเลข</div>
+                    <div class="inline-block px-8 py-4 rounded-2xl ${lc.priority === 0 ? 'bg-amber-500/15 border-2 border-amber-500/40 glow-amber' : 'bg-blue-500/10 border-2 border-blue-500/30 glow-blue'} flash-call">
+                        <div class="text-5xl font-extrabold tracking-wider ${lc.priority === 0 ? 'text-amber-400' : 'text-white'}">
+                            ${lc.queueNumber}
+                        </div>
+                    </div>
+                    <div class="mt-3 text-xl font-semibold text-slate-300">เชิญที่ <span class="text-blue-400">ช่องบริการ ${lc.counterId}</span></div>
+                    <div class="text-sm ${svc.text} mt-1">${svc.name}</div>
+                </div>
+            ` : lc ? `
+                <div class="text-center">
+                    <div class="text-slate-500 text-xs mb-2 tracking-wider">คิวที่เรียกล่าสุด</div>
+                    <div class="inline-block px-6 py-3 rounded-xl bg-slate-800/50 border border-slate-700/50">
+                        <div class="text-3xl font-extrabold ${lc.priority === 0 ? 'text-amber-400/80' : 'text-slate-300'} tracking-wider">${lc.queueNumber}</div>
+                    </div>
+                    <div class="mt-2 text-slate-400 text-sm">ช่องบริการ ${lc.counterId} · ${svc.short}</div>
+                </div>
+            ` : `
+                <div class="text-center">
+                    <div class="text-5xl mb-3 opacity-20">📋</div>
+                    <div class="text-slate-500 text-sm">ยังไม่มีการเรียกคิว</div>
+                    <div class="text-slate-600 text-xs mt-1">กรุณารอสักครู่</div>
+                </div>
+            `}
+        </div>
+
+        <!-- Counter Status Grid -->
+        <div class="px-3 pb-2 shrink-0">
+            <div class="text-slate-500 text-[10px] uppercase tracking-wider mb-1.5 px-1">สถานะช่องบริการ</div>
+            <div class="grid gap-1.5" style="grid-template-columns: repeat(${Math.min(State.counters.length, 6)}, minmax(0, 1fr))">${counterCards}</div>
+        </div>
+
+        <!-- Waiting Summary Footer -->
+        <div class="px-4 py-2.5 border-t border-slate-700/40 shrink-0 bg-slate-900/50">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-4">
+                    <div class="text-slate-500 text-[10px] uppercase tracking-wider shrink-0">คิวที่รอ</div>
+                    <div class="flex items-center gap-3 flex-wrap">${waitBars}</div>
+                </div>
+                <div class="text-right shrink-0 ml-3">
+                    <div class="text-2xl font-extrabold text-white leading-none">${totalWaiting}</div>
+                    <div class="text-slate-500 text-[10px]">รวมทั้งหมด</div>
+                </div>
+            </div>
+        </div>`;
+    updateClock();
+}
+
+// ─── Officer Area ──────────────────────────────────────────────────
+
+let dragState = { fromId: null };
+
+function handleDragStart(e, counterId) {
+    dragState.fromId = counterId;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', counterId);
+    requestAnimationFrame(() => e.target.closest('[data-counter-id]')?.classList.add('dragging'));
+}
+
+function handleDragEnd(e) {
+    dragState.fromId = null;
+    document.querySelectorAll('.dragging, .drag-over-top, .drag-over-bottom').forEach(el => {
+        el.classList.remove('dragging', 'drag-over-top', 'drag-over-bottom');
+    });
+}
+
+function handleDragOver(e, counterId) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragState.fromId == counterId) return;
+    const card = e.target.closest('[data-counter-id]');
+    if (!card) return;
+    document.querySelectorAll('.drag-over-top, .drag-over-bottom').forEach(el => {
+        el.classList.remove('drag-over-top', 'drag-over-bottom');
+    });
+    const rect = card.getBoundingClientRect();
+    const midY = rect.top + rect.height / 2;
+    card.classList.toggle('drag-over-top', e.clientY < midY);
+    card.classList.toggle('drag-over-bottom', e.clientY >= midY);
+}
+
+function handleDragLeave(e) {
+    const card = e.target.closest('[data-counter-id]');
+    if (card && !card.contains(e.relatedTarget)) {
+        card.classList.remove('drag-over-top', 'drag-over-bottom');
+    }
+}
+
+function handleDrop(e, toId) {
+    e.preventDefault();
+    const fromId = dragState.fromId;
+    if (fromId == null || fromId == toId) return;
+    const fromIdx = State.counters.findIndex(c => c.id == fromId);
+    const toIdx = State.counters.findIndex(c => c.id == toId);
+    if (fromIdx < 0 || toIdx < 0) return;
+    const card = e.target.closest('[data-counter-id]');
+    const rect = card?.getBoundingClientRect();
+    const insertAfter = rect && e.clientY >= rect.top + rect.height / 2;
+    const [moved] = State.counters.splice(fromIdx, 1);
+    let newIdx = State.counters.findIndex(c => c.id == toId);
+    if (insertAfter) newIdx++;
+    State.counters.splice(newIdx, 0, moved);
+    dragState.fromId = null;
+    renderAll();
+}
+
+function renderOfficerArea() {
+    const el = document.getElementById('officer-area');
+
+    const addBar = `
+        <div class="flex items-center gap-1.5 p-2 bg-slate-800/40 rounded-xl border border-dashed border-slate-700/40 shrink-0">
+            <span class="text-slate-500 text-[10px] shrink-0 mr-1">+ เพิ่มช่อง:</span>
+            ${SERVICE_TYPES.map(st => `
+                <button onclick="addCounter('${st.prefix}')" class="flex-1 py-1.5 rounded-lg ${st.light} ${st.text} hover:opacity-80 active:scale-95 text-[11px] font-semibold transition-all flex items-center justify-center gap-1" title="เพิ่มช่อง ${st.short}">
+                    + ${st.short}
+                </button>
+            `).join('')}
+        </div>`;
+
+    const cards = State.counters.map(c => {
+        const st = SVC_MAP[c.serviceType];
+        const waiting = getWaitingCount(c.serviceType);
+        const qn = c.current ? c.current.queueNumber : null;
+        const isVip = c.current?.priority === 0;
+        const removable = canRemoveCounter(c.id);
+
+        let statusBadge, statusBg;
+        if (c.status === 'idle') { statusBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-700 text-slate-400">ว่าง</span>`; statusBg = 'border-slate-700/50'; }
+        else if (c.status === 'called') { statusBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/20 text-amber-400 animate-pulse">กำลังเรียก</span>`; statusBg = 'border-amber-500/30'; }
+        else { statusBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/20 text-emerald-400">กำลังให้บริการ</span>`; statusBg = 'border-emerald-500/30'; }
+
+        let elapsed = '';
+        if (c.status === 'processing' && c.startedAt) {
+            const sec = Math.floor((Date.now() - c.startedAt) / 1000);
+            const m = Math.floor(sec / 60), s = sec % 60;
+            elapsed = `<span class="text-slate-500 text-[10px] tabular-nums" id="elapsed-${c.id}">${m}:${String(s).padStart(2,'0')}</span>`;
+        }
+
+        let actionBtn = '';
+        if (c.status === 'idle') {
+            if (waiting > 0) {
+                actionBtn = `<button onclick="callNext(${c.id})" class="w-full py-2 rounded-lg bg-blue-600 hover:bg-blue-700 active:scale-[0.97] text-white font-semibold text-xs shadow-lg shadow-blue-600/20 transition-all duration-200 flex items-center justify-center gap-1.5">
+                    <span>📢</span> เรียกคิวถัดไป</button>`;
+            } else {
+                actionBtn = `<button disabled class="w-full py-2 rounded-lg bg-slate-700/50 text-slate-500 font-semibold text-xs cursor-not-allowed flex items-center justify-center gap-1.5">
+                    <span>📢</span> ไม่มีคิวรอ</button>`;
+            }
+        } else if (c.status === 'called') {
+            actionBtn = `<button onclick="startService(${c.id})" class="w-full py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 active:scale-[0.97] text-white font-semibold text-xs shadow-lg shadow-emerald-600/20 transition-all duration-200 flex items-center justify-center gap-1.5">
+                <span>▶️</span> เริ่มบริการ</button>`;
+        } else {
+            actionBtn = `<button onclick="completeService(${c.id})" class="w-full py-2 rounded-lg bg-rose-600 hover:bg-rose-700 active:scale-[0.97] text-white font-semibold text-xs shadow-lg shadow-rose-600/20 transition-all duration-200 flex items-center justify-center gap-1.5">
+                <span>✅</span> เสร็จสิ้น</button>`;
+        }
+
+        return `
+            <div class="bg-slate-800/60 backdrop-blur-sm rounded-xl p-2.5 border ${statusBg} transition-all duration-200 flex flex-col shrink-0"
+                 data-counter-id="${c.id}" draggable="true"
+                 ondragstart="handleDragStart(event,${c.id})"
+                 ondragend="handleDragEnd(event)"
+                 ondragover="handleDragOver(event,${c.id})"
+                 ondragleave="handleDragLeave(event)"
+                 ondrop="handleDrop(event,${c.id})">
+                <div class="flex items-center justify-between mb-1">
+                    <div class="flex items-center gap-2 min-w-0">
+                        <span class="w-6 h-6 rounded-lg ${st.light} flex items-center justify-center text-xs shrink-0 drag-handle" title="ลากเพื่อจัดเรียง">⠿</span>
+                        <div class="min-w-0">
+                            <div class="text-white text-xs font-bold leading-tight">ช่อง ${c.id} <span class="${st.text} font-normal">${st.short}</span></div>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-1.5 shrink-0">
+                        ${elapsed}
+                        ${statusBadge}
+                        ${removable ? `<button onclick="removeCounter(${c.id})" class="w-5 h-5 rounded flex items-center justify-center text-slate-600 hover:text-rose-400 hover:bg-rose-500/10 transition-all text-[10px]" title="ลบช่องนี้">✕</button>` : ''}
+                    </div>
+                </div>
+                <div class="flex items-center justify-between mb-1.5">
+                    <div class="flex items-center gap-2 flex-1 min-w-0">
+                        ${qn ? `
+                            <div class="text-lg font-extrabold tracking-wide ${isVip ? 'text-amber-400' : 'text-white'} leading-none">${qn}</div>
+                            ${isVip ? '<span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 font-semibold shrink-0">VIP</span>' : ''}
+                        ` : `<div class="text-lg font-bold text-slate-600 leading-none">—</div>`}
+                    </div>
+                    <div class="text-right shrink-0">
+                        <span class="text-slate-400 text-[10px]">คิวรอ: </span>
+                        <span class="text-white text-xs font-bold">${waiting}</span>
+                    </div>
+                </div>
+                ${actionBtn}
+            </div>`;
+    }).join('');
+
+    el.innerHTML = addBar + cards;
+}
+
+// ─── Header Stats ──────────────────────────────────────────────────
+
+function renderHeaderStats() {
+    const el = document.getElementById('header-stats');
+    const totalWait = SERVICE_TYPES.reduce((s, st) => s + getWaitingCount(st.prefix), 0);
+    el.textContent = `ออกคิว: ${State.totalIssued} | ให้บริการแล้ว: ${State.totalServed} | รอ: ${totalWait}`;
+}
+
+// ╔════════════════════════════════════════════════════════════════════╗
+// ║  ⏰ CLOCK & ELAPSED TIMERS                                       ║
+// ╚════════════════════════════════════════════════════════════════════╝
+
+function updateClock() {
+    const now = new Date();
+    const timeEl = document.getElementById('board-time');
+    const dateEl = document.getElementById('board-date');
+    if (timeEl) timeEl.textContent = now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    if (dateEl) {
+        const thaiYear = now.getFullYear() + 543;
+        const months = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+        dateEl.textContent = `${now.getDate()} ${months[now.getMonth()]} ${thaiYear}`;
+    }
+}
+
+function updateElapsedTimers() {
+    State.counters.forEach(c => {
+        if (c.status === 'processing' && c.startedAt) {
+            const sec = Math.floor((Date.now() - c.startedAt) / 1000);
+            const m = Math.floor(sec / 60), s = sec % 60;
+            const el = document.getElementById(`elapsed-${c.id}`);
+            if (el) el.textContent = `${m}:${String(s).padStart(2, '0')}`;
+        }
+    });
+}
+
+// ╔════════════════════════════════════════════════════════════════════╗
+// ║  🔄 DEMO RESET                                                   ║
+// ╚════════════════════════════════════════════════════════════════════╝
+
+function resetDemo() {
+    SERVICE_TYPES.forEach(st => {
+        State.queues[st.prefix][0] = new LinkedListQueue();
+        State.queues[st.prefix][1] = new LinkedListQueue();
+        State.seq[st.prefix][0] = 0;
+        State.seq[st.prefix][1] = 0;
+    });
+    State.counters = [
+        { id: 1, serviceType: 'R', status: 'idle', current: null, calledAt: null, startedAt: null },
+        { id: 2, serviceType: 'S', status: 'idle', current: null, calledAt: null, startedAt: null },
+        { id: 3, serviceType: 'E', status: 'idle', current: null, calledAt: null, startedAt: null },
+        { id: 4, serviceType: 'L', status: 'idle', current: null, calledAt: null, startedAt: null },
+    ];
+    State.nextCounterId = 5;
+    State.lastCalled = null;
+    State.lastCalledTime = 0;
+    State.flashActive = false;
+    State.totalIssued = 0;
+    State.totalServed = 0;
+    kioskReset();
+    renderAll();
+}
+
+// ╔════════════════════════════════════════════════════════════════════╗
+// ║  🚀 INITIALIZATION                                               ║
+// ╚════════════════════════════════════════════════════════════════════╝
+
+function init() {
+    renderAll();
+    setInterval(updateClock, 1000);
+    setInterval(updateElapsedTimers, 1000);
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
