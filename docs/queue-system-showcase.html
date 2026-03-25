@@ -133,6 +133,15 @@
         </section>
     </main>
 
+    <!-- ═══════════════════════════ TRANSFER MODAL ═══════════════════════════ -->
+    <div id="transfer-modal" class="hidden fixed inset-0 z-[100] flex items-center justify-center">
+        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick="closeTransferModal()"></div>
+        <div class="relative bg-slate-800 rounded-2xl border border-slate-600 shadow-2xl p-5 w-80 max-w-[90vw] anim-pop">
+            <button onclick="closeTransferModal()" class="absolute top-3 right-3 w-7 h-7 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-400 hover:text-white flex items-center justify-center text-sm transition-all">✕</button>
+            <div id="transfer-modal-body"></div>
+        </div>
+    </div>
+
 <script>
 // ╔════════════════════════════════════════════════════════════════════╗
 // ║  📦 DATA STRUCTURES — Linked List Queue (O(1) Enqueue/Dequeue)  ║
@@ -333,6 +342,80 @@ function completeService(counterId) {
     counter.startedAt = null;
     State.totalServed++;
     renderAll();
+}
+
+// ─── Transfer Queue ────────────────────────────────────────────────
+
+function transferQueue(counterId, targetServiceType) {
+    const counter = State.counters.find(c => c.id === counterId);
+    if (!counter || (counter.status !== 'called' && counter.status !== 'processing')) return;
+    if (!counter.current) return;
+
+    const ticket = counter.current;
+    const priority = ticket.priority;
+
+    // Generate new queue number in target service
+    State.seq[targetServiceType][priority]++;
+    const num = State.seq[targetServiceType][priority];
+    const newQueueNumber = formatQueueNumber(targetServiceType, priority, num);
+
+    const newTicket = {
+        id: `${targetServiceType}-${priority}-${num}`,
+        queueNumber: newQueueNumber,
+        serviceType: targetServiceType,
+        priority: priority,
+        status: 'pending',
+        createdAt: ticket.createdAt,
+        transferredFrom: ticket.queueNumber,
+    };
+
+    State.queues[targetServiceType][priority].enqueue(newTicket);
+
+    // Reset counter
+    counter.status = 'idle';
+    counter.current = null;
+    counter.calledAt = null;
+    counter.startedAt = null;
+
+    closeTransferModal();
+    renderAll();
+}
+
+function openTransferModal(counterId) {
+    const counter = State.counters.find(c => c.id === counterId);
+    if (!counter || !counter.current) return;
+    const currentType = counter.current.serviceType;
+    const modal = document.getElementById('transfer-modal');
+    const body = document.getElementById('transfer-modal-body');
+
+    const options = SERVICE_TYPES.map(st => {
+        const isSameType = st.prefix === currentType;
+        return `
+        <button onclick="transferQueue(${counterId}, '${st.prefix}')"
+            class="w-full p-3 rounded-xl border ${isSameType ? 'border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20' : 'border-slate-600 bg-slate-700/50 hover:bg-slate-700'} active:scale-[0.97]
+                   transition-all duration-200 text-left flex items-center gap-3">
+            <span class="text-2xl">${st.icon}</span>
+            <div>
+                <div class="font-bold text-sm text-white">${st.name} ${isSameType ? '<span class="text-[10px] text-amber-400 font-normal">(ประเภทเดิม)</span>' : ''}</div>
+                <div class="text-[11px] text-slate-400">รอ: ${getWaitingCount(st.prefix)} คิว</div>
+            </div>
+        </button>`;
+    }).join('');
+
+    body.innerHTML = `
+        <div class="text-center mb-3">
+            <div class="text-amber-400 text-2xl mb-1">🔀</div>
+            <div class="text-white font-bold text-sm">ย้ายคิว ${counter.current.queueNumber}</div>
+            <div class="text-slate-400 text-xs">จาก ${SVC_MAP[currentType].name} ไปยัง:</div>
+        </div>
+        <div class="flex flex-col gap-2">${options}</div>
+    `;
+
+    modal.classList.remove('hidden');
+}
+
+function closeTransferModal() {
+    document.getElementById('transfer-modal').classList.add('hidden');
 }
 
 // ─── Counter Management ────────────────────────────────────────────
@@ -788,11 +871,19 @@ function renderOfficerArea() {
                     <span>📢</span> ไม่มีคิวรอ</button>`;
             }
         } else if (c.status === 'called') {
-            actionBtn = `<button onclick="startService(${c.id})" class="w-full py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 active:scale-[0.97] text-white font-semibold text-xs shadow-lg shadow-emerald-600/20 transition-all duration-200 flex items-center justify-center gap-1.5">
-                <span>▶️</span> เริ่มบริการ</button>`;
+            actionBtn = `<div class="flex gap-1.5">
+                <button onclick="startService(${c.id})" class="flex-1 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 active:scale-[0.97] text-white font-semibold text-xs shadow-lg shadow-emerald-600/20 transition-all duration-200 flex items-center justify-center gap-1.5">
+                    <span>▶️</span> เริ่มบริการ</button>
+                <button onclick="openTransferModal(${c.id})" class="py-2 px-2.5 rounded-lg bg-amber-600 hover:bg-amber-700 active:scale-[0.97] text-white font-semibold text-xs shadow-lg shadow-amber-600/20 transition-all duration-200 flex items-center justify-center gap-1" title="ย้ายคิว">
+                    🔀</button>
+            </div>`;
         } else {
-            actionBtn = `<button onclick="completeService(${c.id})" class="w-full py-2 rounded-lg bg-rose-600 hover:bg-rose-700 active:scale-[0.97] text-white font-semibold text-xs shadow-lg shadow-rose-600/20 transition-all duration-200 flex items-center justify-center gap-1.5">
-                <span>✅</span> เสร็จสิ้น</button>`;
+            actionBtn = `<div class="flex gap-1.5">
+                <button onclick="completeService(${c.id})" class="flex-1 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 active:scale-[0.97] text-white font-semibold text-xs shadow-lg shadow-rose-600/20 transition-all duration-200 flex items-center justify-center gap-1.5">
+                    <span>✅</span> เสร็จสิ้น</button>
+                <button onclick="openTransferModal(${c.id})" class="py-2 px-2.5 rounded-lg bg-amber-600 hover:bg-amber-700 active:scale-[0.97] text-white font-semibold text-xs shadow-lg shadow-amber-600/20 transition-all duration-200 flex items-center justify-center gap-1" title="ย้ายคิว">
+                    🔀</button>
+            </div>`;
         }
 
         return `
