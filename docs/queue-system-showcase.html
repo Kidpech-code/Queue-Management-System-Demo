@@ -351,17 +351,20 @@ function transferQueue(counterId, targetServiceType) {
     if (!counter || (counter.status !== 'called' && counter.status !== 'processing')) return;
     if (!counter.current) return;
 
+    // ห้ามย้ายมาหาตัวเอง: ถ้าเป็นประเภทเดิม ต้องมีช่องอื่นที่รับประเภทนี้
+    const isSameType = counter.current.serviceType === targetServiceType;
+    if (isSameType) {
+        const otherCounters = State.counters.filter(c => c.serviceType === targetServiceType && c.id !== counterId);
+        if (otherCounters.length === 0) return; // ไม่มีช่องอื่นให้ย้ายไป
+    }
+
     const ticket = counter.current;
     const priority = ticket.priority;
 
-    // Generate new queue number in target service
-    State.seq[targetServiceType][priority]++;
-    const num = State.seq[targetServiceType][priority];
-    const newQueueNumber = formatQueueNumber(targetServiceType, priority, num);
-
+    // ใช้เลขคิวเดิม — ประชาชนถือบัตรคิวเดิมอยู่แล้ว ไม่ต้องออกเลขใหม่
     const newTicket = {
-        id: `${targetServiceType}-${priority}-${num}`,
-        queueNumber: newQueueNumber,
+        id: `${targetServiceType}-${priority}-${ticket.queueNumber}`,
+        queueNumber: ticket.queueNumber,
         serviceType: targetServiceType,
         priority: priority,
         status: 'pending',
@@ -390,14 +393,17 @@ function openTransferModal(counterId) {
 
     const options = SERVICE_TYPES.map(st => {
         const isSameType = st.prefix === currentType;
+        // ถ้าเป็นประเภทเดิม ต้องมีช่องอื่นรับประเภทนี้ ไม่งั้นย้ายมาหาตัวเองอย่างเดียว
+        const otherCountersCount = State.counters.filter(c => c.serviceType === st.prefix && c.id !== counterId).length;
+        const disabled = isSameType && otherCountersCount === 0;
         return `
-        <button onclick="transferQueue(${counterId}, '${st.prefix}')"
-            class="w-full p-3 rounded-xl border ${isSameType ? 'border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20' : 'border-slate-600 bg-slate-700/50 hover:bg-slate-700'} active:scale-[0.97]
-                   transition-all duration-200 text-left flex items-center gap-3">
+        <button onclick="${disabled ? '' : `transferQueue(${counterId}, '${st.prefix}')`}"
+            class="w-full p-3 rounded-xl border ${disabled ? 'border-slate-700/30 bg-slate-800/30 opacity-40 cursor-not-allowed' : isSameType ? 'border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20' : 'border-slate-600 bg-slate-700/50 hover:bg-slate-700'} active:scale-[0.97]
+                   transition-all duration-200 text-left flex items-center gap-3" ${disabled ? 'disabled' : ''}>
             <span class="text-2xl">${st.icon}</span>
             <div>
                 <div class="font-bold text-sm text-white">${st.name} ${isSameType ? '<span class="text-[10px] text-amber-400 font-normal">(ประเภทเดิม)</span>' : ''}</div>
-                <div class="text-[11px] text-slate-400">รอ: ${getWaitingCount(st.prefix)} คิว</div>
+                <div class="text-[11px] text-slate-400">รอ: ${getWaitingCount(st.prefix)} คิว${disabled ? ' · <span class="text-rose-400">ไม่มีช่องอื่น</span>' : ''}</div>
             </div>
         </button>`;
     }).join('');
